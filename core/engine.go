@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 
-	"github.com/hextechpal/prio/internal/models"
+	"github.com/hextechpal/prio/core/internal/models"
 )
 
 type Engine interface {

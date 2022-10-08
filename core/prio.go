@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/hextechpal/prio/internal/models"
+	"github.com/hextechpal/prio/core/internal/models"
 )
 
 type Prio struct {
