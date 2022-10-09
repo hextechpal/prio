@@ -4,21 +4,21 @@ import (
 	"context"
 	"time"
 
-	"github.com/hextechpal/prio/core/internal/models"
+	"github.com/hextechpal/prio/core/models"
 )
 
 type Prio struct {
-	engine Engine
+	s Storage
 }
 
-func NewPrio(e Engine) *Prio {
-	return &Prio{engine: e}
+func NewPrio(s Storage) *Prio {
+	return &Prio{s: s}
 }
 
 // Enqueue : Accepts an incoming job request and persist it durably via the persistence engine
 func (p *Prio) Enqueue(ctx context.Context, r *EnqueueRequest) (*EnqueueResponse, error) {
 	job := toJob(r)
-	jobId, err := p.engine.Save(ctx, job)
+	jobId, err := p.s.Save(ctx, job)
 	if err != nil {
 		return nil, err
 	}
