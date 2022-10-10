@@ -5,63 +5,66 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/mysql"
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/hextechpal/prio/commons"
 	"github.com/hextechpal/prio/core/models"
 	"github.com/jmoiron/sqlx"
 )
 
 const (
-	migrationPath = "../migrations"
-	addJob        = `INSERT INTO jobs(payload, priority, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`
+	dbName   = "prio"
+	addTopic = `INSERT INTO topics(name, description, created_at, updated_at) VALUES (?, ?, ?, ?)`
+	addJob   = `INSERT INTO jobs(topic, payload, priority, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+	popJob   = `SELECT * FROM jobs where `
 )
 
 type Storage struct {
 	*sqlx.DB
 	c *Config
+	l *commons.PLogger
 }
 
-func NewStorage(c *Config) (*Storage, error) {
+func NewStorage(c *Config, l *commons.PLogger) (*Storage, error) {
 	db, err := sqlx.Connect("mysql", assembleDSN(c))
 	if err != nil {
+		l.Error().Err(err)
 		return nil, err
 	}
-	err = db.Ping()
-	if err != nil {
-		return nil, err
-	}
-	s := &Storage{db, c}
-	err = s.migrateDB()
-	if err != nil {
-		return nil, err
-	}
+	s := &Storage{db, c, l}
 	return s, nil
 }
 
-func (s *Storage) Save(ctx context.Context, job *models.Job) (int64, error) {
+func assembleDSN(c *Config) string {
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", c.User, c.Password, c.Host, c.Port, dbName)
+}
+
+func (s *Storage) Enqueue(ctx context.Context, job *models.Job) (int64, error) {
 	stmt, err := s.Preparex(addJob)
 	if err != nil {
 		return -1, err
 	}
-	r, err := stmt.Exec(job.Payload, job.Priority, job.Status, time.Now().UnixMilli(), time.Now().UnixMilli())
+	r, err := stmt.Exec(job.Topic, job.Payload, job.Priority, job.Status, time.Now().UnixMilli(), time.Now().UnixMilli())
 	if err != nil {
 		return -1, err
 	}
 	return r.LastInsertId()
 }
 
-func assembleDSN(c *Config) string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", c.User, c.Password, c.Host, c.Port, c.DBName)
+func (s *Storage) Dequeue(ctx context.Context, topic string) (*models.Job, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
-func (s *Storage) migrateDB() error {
-	driver, err := mysql.WithInstance(s.DB.DB, &mysql.Config{})
+func (s *Storage) CreateTopic(ctx context.Context, name, description string) (int64, error) {
+	stmt, err := s.Preparex(addTopic)
 	if err != nil {
-		return err
+		return -1, err
 	}
-	m, err := migrate.NewWithDatabaseInstance(migrationPath, s.c.DBName, driver)
+	r, err := stmt.Exec(name, description, time.Now().UnixMilli(), time.Now().UnixMilli())
 	if err != nil {
-		return err
+		return -1, err
 	}
-	return m.Up()
+	s.l.Info().Msgf("topic %s registered successfully", name)
+	return r.LastInsertId()
 }

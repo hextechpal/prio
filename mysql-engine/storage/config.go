@@ -5,5 +5,4 @@ type Config struct {
 	Password string
 	Host     string
 	Port     int
-	DBName   string
 }

@@ -9,10 +9,11 @@ const (
 )
 
 type Job struct {
-	ID        int64
-	Payload   []byte
-	Priority  int32
-	CreatedAt int64
-	UpdatedAt int64
-	Status    Status
+	ID        int64  `db:"id"`
+	Topic     string `db:"topic"`
+	Payload   []byte `db:"payload"`
+	Priority  int32  `db:"priority"`
+	CreatedAt int64  `db:"created_at"`
+	UpdatedAt int64  `db:"updated_at"`
+	Status    Status `db:"status"`
 }
