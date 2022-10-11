@@ -46,6 +46,7 @@ func (p *Prio) Dequeue(ctx context.Context, r *DequeueRequest) (*DequeueResponse
 func toDequeue(job *models.Job) *DequeueResponse {
 	return &DequeueResponse{
 		JobId:   job.ID,
+		Topic:   job.Topic,
 		Payload: job.Payload,
 	}
 }

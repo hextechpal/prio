@@ -6,6 +6,8 @@ CREATE TABLE jobs (
     status TINYINT default 1,
     created_at BIGINT DEFAULT NULL,
     updated_at BIGINT DEFAULT NULL,
+    delivered_at BIGINT DEFAULT NULL,
+    acked_at BIGINT DEFAULT NULL,
     FOREIGN KEY (topic) REFERENCES topics(name)
 );
 

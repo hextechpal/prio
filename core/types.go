@@ -25,5 +25,6 @@ type DequeueRequest struct {
 
 type DequeueResponse struct {
 	JobId   int64
+	Topic   string
 	Payload []byte
 }
