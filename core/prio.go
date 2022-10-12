@@ -2,9 +2,20 @@ package core
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/hextechpal/prio/core/models"
+)
+
+var (
+	ErrorGeneral = errors.New("something went wrong try again")
+
+	ErrorJobNotAcquired = errors.New("job not acquired")
+	ErrorJobNotPresent  = errors.New("job not present")
+	ErrorAlreadyAcked   = errors.New("job already acked")
+	ErrorWrongConsumer  = errors.New("job claimed by a different consumer")
+	ErrorLeaseExceeded  = errors.New("lease time exceeded")
 )
 
 type Prio struct {
@@ -35,12 +46,20 @@ func (p *Prio) Enqueue(ctx context.Context, r *EnqueueRequest) (*EnqueueResponse
 }
 
 func (p *Prio) Dequeue(ctx context.Context, r *DequeueRequest) (*DequeueResponse, error) {
-	job, err := p.s.Dequeue(ctx, r.Topic)
+	job, err := p.s.Dequeue(ctx, r.Topic, r.Consumer)
 	if err != nil {
 		return nil, err
 	}
 
 	return toDequeue(job), nil
+}
+
+func (p *Prio) Ack(ctx context.Context, r *AckRequest) (*AckResponse, error) {
+	err := p.s.Ack(ctx, r.Topic, r.JobId, r.Consumer)
+	if err != nil {
+		return nil, err
+	}
+	return &AckResponse{acked: true}, nil
 }
 
 func toDequeue(job *models.Job) *DequeueResponse {

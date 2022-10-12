@@ -20,11 +20,22 @@ type EnqueueResponse struct {
 }
 
 type DequeueRequest struct {
-	Topic string
+	Topic    string
+	Consumer string
 }
 
 type DequeueResponse struct {
 	JobId   int64
 	Topic   string
 	Payload []byte
+}
+
+type AckRequest struct {
+	JobId    int64
+	Topic    string
+	Consumer string
+}
+
+type AckResponse struct {
+	acked bool
 }

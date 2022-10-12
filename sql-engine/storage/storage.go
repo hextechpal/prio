@@ -3,32 +3,25 @@ package storage
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/hextechpal/prio/commons"
+	"github.com/hextechpal/prio/core"
 	"github.com/hextechpal/prio/core/models"
 	"github.com/jmoiron/sqlx"
 )
 
-const (
-	addTopic = `INSERT INTO topics(name, description, created_at, updated_at) VALUES (?, ?, ?, ?)`
-	addJob   = `INSERT INTO jobs(topic, payload, priority, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
-
-	topJob   = `SELECT jobs.id, jobs.payload from jobs where jobs.topic = ? ORDER BY priority DESC, updated_at ASC LIMIT 1 FOR UPDATE`
-	claimJob = `UPDATE jobs SET status = ?, delivered_at = ?  WHERE jobs.id = ?`
-)
+const ()
 
 var (
-	log                 = &commons.PLogger{}
-	ErrorJobNotAcquired = errors.New("job not acquired")
-	ErrorJobNotPresent  = errors.New("job not present")
+	log = &commons.PLogger{}
 )
 
 type Storage struct {
 	*sqlx.DB
-	c *Config
+	c  *Config
+	qm *QueryMap
 }
 
 func NewStorage(c *Config, l *commons.PLogger) (*Storage, error) {
@@ -38,12 +31,12 @@ func NewStorage(c *Config, l *commons.PLogger) (*Storage, error) {
 		l.Error().Err(err)
 		return nil, err
 	}
-	s := &Storage{db, c}
+	s := &Storage{db, c, &QueryMap{driver: c.Driver}}
 	return s, nil
 }
 
 func (s *Storage) Enqueue(ctx context.Context, job *models.Job) (int64, error) {
-	stmt, err := s.Preparex(addJob)
+	stmt, err := s.Preparex(s.qm.addJob())
 	if err != nil {
 		return -1, err
 	}
@@ -55,7 +48,7 @@ func (s *Storage) Enqueue(ctx context.Context, job *models.Job) (int64, error) {
 }
 
 func (s *Storage) CreateTopic(ctx context.Context, name, description string) (int64, error) {
-	stmt, err := s.Preparex(addTopic)
+	stmt, err := s.Preparex(s.qm.addTopic())
 	if err != nil {
 		return -1, err
 	}
@@ -67,7 +60,7 @@ func (s *Storage) CreateTopic(ctx context.Context, name, description string) (in
 	return r.LastInsertId()
 }
 
-func (s *Storage) Dequeue(ctx context.Context, topic string) (*models.Job, error) {
+func (s *Storage) Dequeue(ctx context.Context, topic string, consumer string) (*models.Job, error) {
 	// Find Top priority item with status pending
 	// Update the status to delivered and delivered_at timestamp to NOW()
 	// return the updated object
@@ -80,30 +73,80 @@ func (s *Storage) Dequeue(ctx context.Context, topic string) (*models.Job, error
 	}()
 
 	var job models.Job
-	sJOb, err := tx.Preparex(topJob)
+	sJOb, err := tx.Preparex(s.qm.topJob())
 	if err != nil {
 		return nil, err
 
 	}
-	err = sJOb.GetContext(ctx, &job, topic)
+	err = sJOb.GetContext(ctx, &job, topic, models.PENDING)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, ErrorJobNotPresent
+			return nil, core.ErrorJobNotPresent
 		}
 		return nil, err
 	}
 
-	result, err := tx.ExecContext(ctx, claimJob, models.DELIVERED, time.Now().UnixMilli(), job.ID)
+	result, err := tx.ExecContext(ctx, s.qm.claimJob(), models.CLAIMED, time.Now().UnixMilli(), consumer, job.ID)
 	if err != nil {
 		return nil, err
 	}
 
 	if affected, err := result.RowsAffected(); err != nil || affected == 0 {
-		return nil, ErrorJobNotAcquired
+		return nil, core.ErrorJobNotAcquired
 	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return &job, nil
+}
+
+func (s *Storage) Ack(ctx context.Context, topic string, id int64, consumer string) error {
+	tx := s.MustBeginTx(ctx, &sql.TxOptions{})
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			log.Error().Err(err)
+		}
+	}()
+
+	var job models.Job
+	sJOb, err := tx.Preparex(s.qm.jobById())
+	if err != nil {
+		return err
+
+	}
+	err = sJOb.GetContext(ctx, &job, id, topic)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return core.ErrorJobNotPresent
+		}
+		return err
+	}
+
+	if job.Status == models.COMPLETED {
+		return core.ErrorAlreadyAcked
+	}
+
+	if job.Status == models.PENDING {
+		return core.ErrorLeaseExceeded
+	}
+
+	if job.Status == models.CLAIMED && *job.ClaimedBy != consumer {
+		return core.ErrorWrongConsumer
+	}
+
+	result, err := tx.ExecContext(ctx, s.qm.completeJob(), models.CLAIMED, time.Now().UnixMilli(), job.ID)
+	if err != nil {
+		return err
+	}
+
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return core.ErrorGeneral
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
 }

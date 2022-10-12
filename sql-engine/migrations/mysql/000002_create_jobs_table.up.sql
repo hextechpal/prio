@@ -4,10 +4,15 @@ CREATE TABLE jobs (
     payload BLOB,
     priority INT NOT NULL,
     status TINYINT default 1,
+
+    claimed_at BIGINT DEFAULT NULL,
+    claimed_by VARCHAR(50) DEFAULT NULL,
+
+    completed_at BIGINT DEFAULT NULL,
+
     created_at BIGINT DEFAULT NULL,
     updated_at BIGINT DEFAULT NULL,
-    delivered_at BIGINT DEFAULT NULL,
-    acked_at BIGINT DEFAULT NULL,
+
     FOREIGN KEY (topic) REFERENCES topics(name)
 );
 
