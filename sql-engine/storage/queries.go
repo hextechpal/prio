@@ -9,50 +9,55 @@ var (
 
 var mysql = map[string]string{
 	"addTopic": `INSERT INTO topics(name, description, created_at, updated_at) VALUES (?, ?, ?, ?)`,
-	"addJob":   `INSERT INTO jobs(topic, payload, priority, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
 
-	"topJob":   `SELECT jobs.id, jobs.payload from jobs where jobs.topic = ? AND jobs.status = ? ORDER BY priority DESC, updated_at ASC LIMIT 1 FOR UPDATE`,
+	"addJob": `INSERT INTO jobs(topic, payload, priority, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+
+	"topJob":   `SELECT jobs.id, jobs.payload, jobs.priority from jobs where jobs.topic = ? AND jobs.status = ? ORDER BY priority DESC, updated_at ASC LIMIT 1 FOR UPDATE`,
 	"claimJob": `UPDATE jobs SET status = ?, claimed_at = ?, claimed_by = ?  WHERE jobs.id = ?`,
 
 	"jobById":     `SELECT jobs.id, jobs.status from jobs where jobs.id = ? AND jobs.topic = ? FOR UPDATE `,
 	"completeJob": `UPDATE jobs SET status = ?, completed_at = ? WHERE jobs.id = ?`,
 }
 
-type QueryMap struct {
+type QueryManager struct {
 	driver string
 }
 
-func (qm *QueryMap) addTopic() string {
+func NewQueryManager(driver string) *QueryManager {
+	return &QueryManager{driver: driver}
+}
+
+func (qm *QueryManager) addTopic() string {
 	q, _ := qm.getQuery("addTopic")
 	return q
 }
 
-func (qm *QueryMap) addJob() string {
+func (qm *QueryManager) addJob() string {
 	q, _ := qm.getQuery("addJob")
 	return q
 }
 
-func (qm *QueryMap) topJob() string {
+func (qm *QueryManager) topJob() string {
 	q, _ := qm.getQuery("topJob")
 	return q
 }
 
-func (qm *QueryMap) claimJob() string {
+func (qm *QueryManager) claimJob() string {
 	q, _ := qm.getQuery("claimJob")
 	return q
 }
 
-func (qm *QueryMap) jobById() string {
+func (qm *QueryManager) jobById() string {
 	q, _ := qm.getQuery("jobById")
 	return q
 }
 
-func (qm *QueryMap) completeJob() string {
+func (qm *QueryManager) completeJob() string {
 	q, _ := qm.getQuery("completeJob")
 	return q
 }
 
-func (qm *QueryMap) getQuery(query string) (string, error) {
+func (qm *QueryManager) getQuery(query string) (string, error) {
 	switch qm.driver {
 	case "mysql":
 		q, ok := mysql[query]

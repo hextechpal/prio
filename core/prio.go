@@ -64,9 +64,10 @@ func (p *Prio) Ack(ctx context.Context, r *AckRequest) (*AckResponse, error) {
 
 func toDequeue(job *models.Job) *DequeueResponse {
 	return &DequeueResponse{
-		JobId:   job.ID,
-		Topic:   job.Topic,
-		Payload: job.Payload,
+		JobId:    job.ID,
+		Topic:    job.Topic,
+		Payload:  job.Payload,
+		Priority: job.Priority,
 	}
 }
 

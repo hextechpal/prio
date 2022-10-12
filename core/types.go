@@ -25,9 +25,10 @@ type DequeueRequest struct {
 }
 
 type DequeueResponse struct {
-	JobId   int64
-	Topic   string
-	Payload []byte
+	JobId    int64
+	Topic    string
+	Payload  []byte
+	Priority int32
 }
 
 type AckRequest struct {

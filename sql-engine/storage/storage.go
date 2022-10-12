@@ -12,8 +12,6 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-const ()
-
 var (
 	log = &commons.PLogger{}
 )
@@ -21,7 +19,7 @@ var (
 type Storage struct {
 	*sqlx.DB
 	c  *Config
-	qm *QueryMap
+	qm *QueryManager
 }
 
 func NewStorage(c *Config, l *commons.PLogger) (*Storage, error) {
@@ -31,16 +29,12 @@ func NewStorage(c *Config, l *commons.PLogger) (*Storage, error) {
 		l.Error().Err(err)
 		return nil, err
 	}
-	s := &Storage{db, c, &QueryMap{driver: c.Driver}}
+	s := &Storage{db, c, NewQueryManager(c.Driver)}
 	return s, nil
 }
 
 func (s *Storage) Enqueue(ctx context.Context, job *models.Job) (int64, error) {
-	stmt, err := s.Preparex(s.qm.addJob())
-	if err != nil {
-		return -1, err
-	}
-	r, err := stmt.Exec(job.Topic, job.Payload, job.Priority, job.Status, time.Now().UnixMilli(), time.Now().UnixMilli())
+	r, err := s.ExecContext(ctx, s.qm.addJob(), job.Topic, job.Payload, job.Priority, job.Status, time.Now().UnixMilli(), time.Now().UnixMilli())
 	if err != nil {
 		return -1, err
 	}
@@ -48,11 +42,7 @@ func (s *Storage) Enqueue(ctx context.Context, job *models.Job) (int64, error) {
 }
 
 func (s *Storage) CreateTopic(ctx context.Context, name, description string) (int64, error) {
-	stmt, err := s.Preparex(s.qm.addTopic())
-	if err != nil {
-		return -1, err
-	}
-	r, err := stmt.Exec(name, description, time.Now().UnixMilli(), time.Now().UnixMilli())
+	r, err := s.ExecContext(ctx, s.qm.addTopic(), name, description, time.Now().UnixMilli(), time.Now().UnixMilli())
 	if err != nil {
 		return -1, err
 	}
@@ -73,12 +63,7 @@ func (s *Storage) Dequeue(ctx context.Context, topic string, consumer string) (*
 	}()
 
 	var job models.Job
-	sJOb, err := tx.Preparex(s.qm.topJob())
-	if err != nil {
-		return nil, err
-
-	}
-	err = sJOb.GetContext(ctx, &job, topic, models.PENDING)
+	err := s.GetContext(ctx, &job, s.qm.topJob(), topic, models.PENDING)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, core.ErrorJobNotPresent
@@ -110,12 +95,7 @@ func (s *Storage) Ack(ctx context.Context, topic string, id int64, consumer stri
 	}()
 
 	var job models.Job
-	sJOb, err := tx.Preparex(s.qm.jobById())
-	if err != nil {
-		return err
-
-	}
-	err = sJOb.GetContext(ctx, &job, id, topic)
+	err := s.GetContext(ctx, &job, s.qm.jobById(), id, topic)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return core.ErrorJobNotPresent

@@ -16,4 +16,4 @@ CREATE TABLE jobs (
     FOREIGN KEY (topic) REFERENCES topics(name)
 );
 
-CREATE INDEX topic_prio_updated_idx ON jobs(topic, priority DESC, updated_at ASC);
+CREATE INDEX top_job_idx ON jobs(topic, status, priority DESC, updated_at ASC);
