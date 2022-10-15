@@ -124,7 +124,7 @@ func (s *Storage) Ack(ctx context.Context, topic string, id int64, consumer stri
 		return core.ErrorGeneral
 	}
 
-	if err := tx.Commit(); err != nil {
+	if err = tx.Commit(); err != nil {
 		return err
 	}
 

@@ -8,6 +8,7 @@ import (
 )
 
 type PLogger struct {
+	// TODO : Convert this to an interface and use that implementation
 	*zerolog.Logger
 }
 
