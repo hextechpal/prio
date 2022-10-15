@@ -1,4 +1,4 @@
-module github.com/hextechpal/prio/mysql-engine
+module github.com/hextechpal/prio/sql-engine
 
 go 1.19
 
