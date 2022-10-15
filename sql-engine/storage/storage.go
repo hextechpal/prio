@@ -33,20 +33,20 @@ func NewStorage(c *Config, l *commons.PLogger) (*Storage, error) {
 	return s, nil
 }
 
-func (s *Storage) Enqueue(ctx context.Context, job *models.Job) (int64, error) {
-	r, err := s.ExecContext(ctx, s.qm.addJob(), job.Topic, job.Payload, job.Priority, job.Status, time.Now().UnixMilli(), time.Now().UnixMilli())
-	if err != nil {
-		return -1, err
-	}
-	return r.LastInsertId()
-}
-
 func (s *Storage) CreateTopic(ctx context.Context, name, description string) (int64, error) {
 	r, err := s.ExecContext(ctx, s.qm.addTopic(), name, description, time.Now().UnixMilli(), time.Now().UnixMilli())
 	if err != nil {
 		return -1, err
 	}
 	log.Info().Msgf("topic %s registered successfully", name)
+	return r.LastInsertId()
+}
+
+func (s *Storage) Enqueue(ctx context.Context, job *models.Job) (int64, error) {
+	r, err := s.ExecContext(ctx, s.qm.addJob(), job.Topic, job.Payload, job.Priority, job.Status, time.Now().UnixMilli(), time.Now().UnixMilli())
+	if err != nil {
+		return -1, err
+	}
 	return r.LastInsertId()
 }
 

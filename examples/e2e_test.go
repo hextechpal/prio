@@ -1,4 +1,4 @@
-package main
+package examples
 
 import (
 	"context"
@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-zookeeper/zk"
 	"github.com/hextechpal/prio/commons"
-	"github.com/hextechpal/prio/core"
-	"github.com/hextechpal/prio/mysql-engine/storage"
+	"github.com/hextechpal/prio/sql-engine/storage"
+	"github.com/hextechpal/prio/worker"
 )
 
 const (
@@ -20,15 +21,20 @@ const (
 	host     = "127.0.0.1"
 	port     = 3306
 	dbname   = "prio"
+
+	zkHost = "127.0.0.1"
 )
 
 func TestE2E(t *testing.T) {
 	ctx := context.TODO()
 	rand.Seed(time.Now().UnixMilli())
 	topic := fmt.Sprintf("topic_%d", rand.Intn(100))
-	p := setup(ctx, t)
+	w, err := setup(ctx, t)
+	if err != nil {
+		t.Fatalf("cannot start worker %v", err)
+	}
 
-	_, err := p.RegisterTopic(ctx, &core.RegisterTopicRequest{
+	_, err = w.RegisterTopic(ctx, &worker.RegisterTopicRequest{
 		Name:        topic,
 		Description: "Description for topic1",
 	})
@@ -40,14 +46,14 @@ func TestE2E(t *testing.T) {
 
 	gotCh := make(chan int32)
 	doneCh := make(chan bool)
-	count := 100000
+	count := 100
 
 	start := time.Now()
-	want := enqueueJobs(t, ctx, p, topic, count)
+	want := enqueueJobs(t, ctx, w, topic, count)
 	t.Logf("Enqueue took %v", time.Since(start))
 
 	start = time.Now()
-	go dequeueJobs(t, ctx, p, topic, gotCh, doneCh, 1)
+	go dequeueJobs(t, ctx, w, topic, gotCh, doneCh, 1)
 
 	got := make([]int32, 0)
 
@@ -62,7 +68,7 @@ func TestE2E(t *testing.T) {
 
 }
 
-func dequeueJobs(t *testing.T, ctx context.Context, p *core.Prio, topic string, gotCh chan int32, done chan bool, workers int) {
+func dequeueJobs(t *testing.T, ctx context.Context, p *worker.Worker, topic string, gotCh chan int32, done chan bool, workers int) {
 	t.Helper()
 	for i := 0; i < workers; i++ {
 		go func(wid int, gotCh chan int32, done chan bool) {
@@ -71,7 +77,7 @@ func dequeueJobs(t *testing.T, ctx context.Context, p *core.Prio, topic string, 
 				case <-done:
 					return
 				default:
-					dequeue, err := p.Dequeue(ctx, &core.DequeueRequest{Topic: topic})
+					dequeue, err := p.Dequeue(ctx, &worker.DequeueRequest{Topic: topic})
 					if err != nil {
 						break
 					}
@@ -82,7 +88,7 @@ func dequeueJobs(t *testing.T, ctx context.Context, p *core.Prio, topic string, 
 	}
 }
 
-func enqueueJobs(t *testing.T, ctx context.Context, p *core.Prio, topic string, count int) []int32 {
+func enqueueJobs(t *testing.T, ctx context.Context, p *worker.Worker, topic string, count int) []int32 {
 	t.Helper()
 	type jobPriority struct {
 		JobId    int64
@@ -92,7 +98,7 @@ func enqueueJobs(t *testing.T, ctx context.Context, p *core.Prio, topic string, 
 	allJobs := make([]jobPriority, count)
 	for i := 0; i < count; i++ {
 		priority := int32(rand.Intn(100))
-		res, err := p.Enqueue(ctx, &core.EnqueueRequest{
+		res, err := p.Enqueue(ctx, &worker.EnqueueRequest{
 			Topic:    topic,
 			Priority: priority,
 			Payload:  []byte(fmt.Sprintf("payload_%d", i)),
@@ -114,13 +120,13 @@ func enqueueJobs(t *testing.T, ctx context.Context, p *core.Prio, topic string, 
 	return jobIds
 }
 
-func setup(ctx context.Context, t *testing.T) *core.Prio {
+func setup(ctx context.Context, t *testing.T) (*worker.Worker, error) {
 	t.Helper()
 	c := &storage.Config{
 		Driver: "mysql",
 		DSN:    fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", user, password, host, port, dbname),
 	}
-
+	namespace := fmt.Sprintf("ns_%d", rand.Intn(100))
 	l := commons.NewLogger(ctx)
 	s, err := storage.NewStorage(c, l)
 	if err != nil {
@@ -128,5 +134,6 @@ func setup(ctx context.Context, t *testing.T) *core.Prio {
 		t.FailNow()
 	}
 
-	return core.NewPrio(s)
+	conn, _, err := zk.Connect([]string{zkHost}, 10*time.Second)
+	return worker.NewWorker(namespace, s, conn, l)
 }

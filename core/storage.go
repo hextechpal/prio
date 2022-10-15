@@ -13,7 +13,9 @@ type Storage interface {
 	// Enqueue : Persist a jon in to the datastore
 	Enqueue(ctx context.Context, job *models.Job) (int64, error)
 
+	// Dequeue :
 	Dequeue(ctx context.Context, topic string, consumer string) (*models.Job, error)
 
+	// Ack :
 	Ack(ctx context.Context, topic string, id int64, consumer string) error
 }
