@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-zookeeper/zk"
 	"github.com/hextechpal/prio/commons"
-	"github.com/hextechpal/prio/core"
+	"github.com/hextechpal/prio/internal/store"
 	"github.com/rs/zerolog/log"
 )
 
@@ -51,7 +51,7 @@ type Worker struct {
 
 // NewWorker : Initializes a new prio instance registers it with zookeeper
 // It also starts all the watchers and background workers
-func NewWorker(namespace string, s core.Storage, zk *zk.Conn) (*Worker, error) {
+func NewWorker(namespace string, s store.Storage, zk *zk.Conn) (*Worker, error) {
 	w := &Worker{
 		namespace: namespace,
 		id:        commons.GenerateUuid(),

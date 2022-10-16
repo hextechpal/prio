@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hextechpal/prio/worker"
+	worker2 "github.com/hextechpal/prio/internal/worker"
 )
 
 func TestE2E(t *testing.T) {
@@ -21,7 +21,7 @@ func TestE2E(t *testing.T) {
 		t.Fatalf("cannot start worker %v", err)
 	}
 
-	_, err = w.RegisterTopic(ctx, &worker.RegisterTopicRequest{
+	_, err = w.RegisterTopic(ctx, &worker2.RegisterTopicRequest{
 		Name:        topic,
 		Description: "Description for topic1",
 	})
@@ -55,7 +55,7 @@ func TestE2E(t *testing.T) {
 
 }
 
-func dequeueJobs(t *testing.T, ctx context.Context, p *worker.Worker, topic string, gotCh chan int32, done chan bool, workers int) {
+func dequeueJobs(t *testing.T, ctx context.Context, p *worker2.Worker, topic string, gotCh chan int32, done chan bool, workers int) {
 	t.Helper()
 	for i := 0; i < workers; i++ {
 		go func(wid int, gotCh chan int32, done chan bool) {
@@ -64,7 +64,7 @@ func dequeueJobs(t *testing.T, ctx context.Context, p *worker.Worker, topic stri
 				case <-done:
 					return
 				default:
-					dequeue, err := p.Dequeue(ctx, &worker.DequeueRequest{Topic: topic})
+					dequeue, err := p.Dequeue(ctx, &worker2.DequeueRequest{Topic: topic})
 					if err != nil {
 						break
 					}
@@ -75,7 +75,7 @@ func dequeueJobs(t *testing.T, ctx context.Context, p *worker.Worker, topic stri
 	}
 }
 
-func enqueueJobs(t *testing.T, ctx context.Context, p *worker.Worker, topic string, count int) []int32 {
+func enqueueJobs(t *testing.T, ctx context.Context, p *worker2.Worker, topic string, count int) []int32 {
 	t.Helper()
 	type jobPriority struct {
 		JobId    int64
@@ -85,7 +85,7 @@ func enqueueJobs(t *testing.T, ctx context.Context, p *worker.Worker, topic stri
 	allJobs := make([]jobPriority, count)
 	for i := 0; i < count; i++ {
 		priority := int32(rand.Intn(100))
-		res, err := p.Enqueue(ctx, &worker.EnqueueRequest{
+		res, err := p.Enqueue(ctx, &worker2.EnqueueRequest{
 			Topic:    topic,
 			Priority: priority,
 			Payload:  []byte(fmt.Sprintf("payload_%d", i)),

@@ -1,4 +1,4 @@
-package storage
+package config
 
 type Config struct {
 	Driver string

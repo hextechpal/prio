@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/go-zookeeper/zk"
-	"github.com/hextechpal/prio/worker/mock"
+	"github.com/hextechpal/prio/internal/worker/mock"
 )
 
 const (

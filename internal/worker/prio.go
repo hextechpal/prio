@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/hextechpal/prio/core"
-	"github.com/hextechpal/prio/core/models"
+	"github.com/hextechpal/prio/internal/models"
+	"github.com/hextechpal/prio/internal/store"
 )
 
 type prio struct {
-	s core.Storage
+	s store.Storage
 }
 
 // RegisterTopic : Register a new topic with prio instance
