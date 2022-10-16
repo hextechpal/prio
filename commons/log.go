@@ -13,8 +13,8 @@ type PLogger struct {
 }
 
 func NewLogger(ctx context.Context) *PLogger {
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.DebugLevel)
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.WithContext(ctx)
 	return &PLogger{&log}
 }

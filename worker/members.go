@@ -8,28 +8,36 @@ type membershipInfo struct {
 }
 
 func (mi *membershipInfo) addMember(member string) {
-	tpn := int(math.Round(float64(len(mi.topics)) / float64(len(mi.data)+1)))
-	if tpn == 0 {
-		return
-	}
 
+	if mi.data == nil {
+		mi.data = make(map[string]map[string]bool)
+	}
+	mi.data[member] = map[string]bool{}
+
+	// If this is the only member assign all the topics to it
 	if mi.data == nil || len(mi.data) == 0 {
-		valMap := make(map[string]bool)
 		for _, topic := range mi.topics {
-			valMap[topic] = true
+			mi.data[member][topic] = true
 		}
-		mi.data = map[string]map[string]bool{member: valMap}
 		return
 	}
 
-	mi.data[member] = make(map[string]bool)
+	// If more members than topics then no need to assign members to topic
+	tpm := mi.tpm(true)
+	if tpm == 0 {
+		return
+	}
+
+	// Start iterating over the members
 	for key, topicMap := range mi.data {
+		// Ignore if key is current member
 		if key == member {
 			continue
 		}
 
-		if len(topicMap) > tpn {
-			off := len(topicMap) - tpn
+		// IF more topics assigned to it then topics per member
+		if len(topicMap) > tpm {
+			off := len(topicMap) - tpm
 			i := 0
 			nkeys := make([]string, off)
 			for topic, _ := range topicMap {
@@ -51,11 +59,13 @@ func (mi *membershipInfo) addMember(member string) {
 func (mi *membershipInfo) removeMember(member string) {
 	orphanMap, ok := mi.data[member]
 	if !ok {
-		// TODO handle if the key is not present
+		// If node is not yet added to membership and removed do nothing
 		return
 	}
-
 	delete(mi.data, member)
+
+	// Capture all the orphaned topics in an array, we will need to assign only these topics
+	// This to done ti minimize disruption
 	orphanTopics := make([]string, len(orphanMap))
 	i := 0
 	for topic, _ := range orphanMap {
@@ -63,12 +73,13 @@ func (mi *membershipInfo) removeMember(member string) {
 		i++
 	}
 
-	tpn := int(math.Round(float64(len(mi.topics)) / float64(len(mi.data))))
 	j := 0
+	tpm := mi.tpm(false)
 	for _, topicMap := range mi.data {
 		j++
-		if len(topicMap) < tpn || j == len(mi.data) {
-			off := tpn - len(topicMap)
+		// If more topics are assigned then topic per member or if it is the last member assign partitions
+		if len(topicMap) < tpm || j == len(mi.data) {
+			off := tpm - len(topicMap)
 			if off > len(orphanTopics) {
 				off = len(orphanTopics)
 			}
@@ -86,8 +97,16 @@ func (mi *membershipInfo) removeMember(member string) {
 	}
 }
 
-func (mi *membershipInfo) topicCount() int {
-	return len(mi.topics)
+func (mi *membershipInfo) tpm(add bool) int {
+	mc := float64(len(mi.data))
+	if add {
+		mc += 1
+	} else {
+		mc -= 1
+	}
+
+	tc := float64(len(mi.topics))
+	return int(math.Round(tc / mc))
 }
 
 func (mi *membershipInfo) getTopics(id string) []string {
