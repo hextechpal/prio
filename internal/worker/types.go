@@ -6,7 +6,7 @@ type RegisterTopicRequest struct {
 }
 
 type RegisterTopicResponse struct {
-	topicID int64
+	TopicID int64
 }
 
 type EnqueueRequest struct {
@@ -38,5 +38,5 @@ type AckRequest struct {
 }
 
 type AckResponse struct {
-	acked bool
+	Acked bool
 }

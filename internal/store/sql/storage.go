@@ -1,4 +1,4 @@
-package mysql
+package sql
 
 import (
 	"context"
@@ -6,31 +6,34 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/hextechpal/prio/commons"
 	"github.com/hextechpal/prio/internal"
-	"github.com/hextechpal/prio/internal/config"
 	"github.com/hextechpal/prio/internal/models"
 	"github.com/jmoiron/sqlx"
-)
-
-var (
-	log = &commons.PLogger{}
+	"github.com/rs/zerolog"
 )
 
 type Storage struct {
 	*sqlx.DB
-	c  *config.Config
-	qm *QueryManager
+	driver string
+	dsn    string
+	qm     *QueryManager
+	logger *zerolog.Logger
 }
 
-func NewStorage(c *config.Config, l *commons.PLogger) (*Storage, error) {
-	log = l
-	db, err := sqlx.Connect(c.Driver, c.DSN)
+func NewStorage(driver string, dsn string, logger *zerolog.Logger) (*Storage, error) {
+	db, err := sqlx.Connect(driver, dsn)
 	if err != nil {
-		l.Error().Err(err)
+		logger.Error().Err(err)
 		return nil, err
 	}
-	s := &Storage{db, c, NewQueryManager(c.Driver)}
+
+	s := &Storage{
+		DB:     db,
+		driver: driver,
+		dsn:    dsn,
+		qm:     NewQueryManager(driver),
+		logger: logger,
+	}
 	return s, nil
 }
 
@@ -39,7 +42,7 @@ func (s *Storage) CreateTopic(ctx context.Context, name, description string) (in
 	if err != nil {
 		return -1, err
 	}
-	log.Info().Msgf("topic %s registered successfully", name)
+	s.logger.Info().Msgf("topic %s registered successfully", name)
 	return r.LastInsertId()
 }
 
@@ -59,7 +62,7 @@ func (s *Storage) Dequeue(ctx context.Context, topic string, consumer string) (*
 	tx := s.MustBeginTx(ctx, &sql.TxOptions{})
 	defer func() {
 		if err := tx.Rollback(); err != nil {
-			log.Error().Err(err)
+			s.logger.Error().Err(err)
 		}
 	}()
 
@@ -91,7 +94,7 @@ func (s *Storage) Ack(ctx context.Context, topic string, id int64, consumer stri
 	tx := s.MustBeginTx(ctx, &sql.TxOptions{})
 	defer func() {
 		if err := tx.Rollback(); err != nil {
-			log.Error().Err(err)
+			s.logger.Error().Err(err)
 		}
 	}()
 

@@ -12,6 +12,7 @@ import (
 	"github.com/go-zookeeper/zk"
 	"github.com/hextechpal/prio/commons"
 	"github.com/hextechpal/prio/internal/store"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
@@ -28,10 +29,6 @@ const (
 	workerPath     = "/prio/%s/election/%s_"
 )
 
-var (
-	l *commons.PLogger = nil
-)
-
 type Worker struct {
 	mu sync.RWMutex
 
@@ -39,129 +36,71 @@ type Worker struct {
 	id        string // id unique id of the prio instance
 
 	zk      *zk.Conn // zk zookeeper connection of listening to changes
-	state   state    // leader : Denotes if this particular prio instance is leader or not
-	topics  []string // topics owned by this particular prio instances
+	state   state    // state : Denotes the state of particular prio instance LEADER | FOLLOWER
 	znode   string   // znode represent the registered path in zookeeper
 	version int      // znode represent the registered path in zookeeper
 
-	*prio
+	store.Storage
 
 	done chan bool
+
+	logger *zerolog.Logger
 }
 
 // NewWorker : Initializes a new prio instance registers it with zookeeper
 // It also starts all the watchers and background workers
-func NewWorker(namespace string, s store.Storage, zk *zk.Conn) (*Worker, error) {
+func NewWorker(ctx context.Context, namespace string, zk *zk.Conn, s store.Storage, logger *zerolog.Logger) (*Worker, error) {
+	uuid := commons.GenerateUuid()
+	l := logger.With().Str("wid", uuid).Logger()
 	w := &Worker{
 		namespace: namespace,
-		id:        commons.GenerateUuid(),
+		id:        uuid,
 		zk:        zk,
 		state:     FOLLOWER,
-		topics:    make([]string, 0),
-		prio:      &prio{s: s},
+		Storage:   s,
 		done:      make(chan bool),
+		logger:    &l,
 	}
 
-	initLogger(namespace, w.id)
+	// Ensure the base znodes are present in zookeeper
+	err := w.ensureZNodes()
+	if err != nil {
+		return nil, err
+	}
 
-	//err := w.startNodeWatcher()
-	//if err != nil {
-	//	w.done <- true
-	//	return nil, err
-	//}
-
-	//err := w.startMembershipWatcher()
-	//if err != nil {
-	//	w.done <- true
-	//	return nil, err
-	//}
-
+	// Register this instance with zookeeper
 	znode, err := w.register()
 	if err != nil {
 		w.done <- true
 		return nil, err
 	}
 	w.znode = znode
-	l.Info().Msgf("znode created %s", znode)
-	go w.nominate()
-	go w.startMaintenance()
-	return w, nil
-}
+	w.logger.Info().Msgf("znode created %s", znode)
 
-func initLogger(namespace string, id string) {
-	ctx := context.WithValue(context.Background(), "wid", id)
-	ctx = context.WithValue(ctx, "ns", namespace)
-	l = commons.NewLogger(ctx)
+	// Nominate current instance to be the leader
+	// If the leader already exist this will setup a watch to the predecessor znode
+	go w.nominate()
+
+	// This instance is responsible for a subset of the topics
+	go w.startMaintenance()
+	go func() {
+		<-ctx.Done()
+		w.ShutDown()
+	}()
+
+	return w, nil
 }
 
 // register : Registers the instance with a new zookeeper
 // TODO: change this to use AuthACL and validate prio instances
 func (w *Worker) register() (string, error) {
-	_, err := w.zk.Create(w.nsKey(), []byte{}, 0, zk.WorldACL(zk.PermAll))
-	if err != nil && err != zk.ErrNodeExists {
-		l.Error().Err(err).Msg("failed to create namespace key")
-		return "", err
-	}
-
-	_, err = w.zk.Create(w.nodeKey(), []byte{}, 0, zk.WorldACL(zk.PermAll))
-	if err != nil && err != zk.ErrNodeExists {
-		l.Error().Err(err).Msg("failed to create node key")
-		return "", err
-	}
-
 	path, err := w.zk.Create(w.workerKey(), []byte(w.id), zk.FlagEphemeral|zk.FlagSequence, zk.WorldACL(zk.PermAll))
 	if err != nil {
-		l.Error().Err(err).Msgf("registration failed")
+		w.logger.Error().Err(err).Msgf("registration failed")
 		return "", err
 	}
-	l.Info().Msgf("registration successful znode=%v", path[len(w.nodeKey())+1:])
+	w.logger.Info().Msgf("registration successful znode=%v", path[len(w.nodeKey())+1:])
 	return path[len(w.nodeKey())+1:], nil
-}
-
-func (w *Worker) startMembershipWatcher() error {
-	exists, _, ch, err := w.zk.ExistsW(w.membershipKey())
-	if exists {
-		go w.watchMembership(ch)
-		return nil
-	}
-
-	if !exists || err == zk.ErrNoNode {
-		_, err = w.zk.Create(w.membershipKey(), nil, 0, zk.WorldACL(zk.PermAll))
-		if err == nil || err == zk.ErrNodeExists {
-			_, _, ch, err = w.zk.GetW(w.membershipKey())
-			if err != nil {
-				return err
-			}
-			go w.watchMembership(ch)
-			return nil
-		}
-		return err
-	}
-	return err
-}
-
-func (w *Worker) watchMembership(ch <-chan zk.Event) {
-	for {
-		select {
-		case <-w.done:
-			// TODO: Check if i need to remove the znode
-			return
-		case e := <-ch:
-			l.Info().Msgf("event received from zookeeper %v", e)
-			if e.Type == zk.EventNodeDataChanged {
-				data, _, err := w.zk.Get(e.Path)
-				if err != nil {
-					l.Error().Err(err)
-					continue
-				}
-				var mi membershipInfo
-				_ = json.Unmarshal(data, &mi)
-				w.mu.Lock()
-				w.topics = mi.getTopics(w.id)
-				w.mu.Unlock()
-			}
-		}
-	}
 }
 
 func (w *Worker) startMaintenance() {
@@ -171,58 +110,8 @@ func (w *Worker) startMaintenance() {
 		case <-w.done:
 			return
 		case <-t.C:
-			w.mu.Lock()
-			w.performMaintenance()
-			w.mu.Unlock()
-		}
-	}
-}
-
-func (w *Worker) performMaintenance() {
-	//l.Info().Msgf("Starting to perform maintenance %v", w.topics)
-}
-
-func (w *Worker) startNodeWatcher() error {
-	exists, _, ch, err := w.zk.ExistsW(w.nodeKey())
-	if exists {
-		go w.watchNodes(ch)
-		return nil
-	}
-
-	l.Info().Err(err).Msgf("node watch key do not exist")
-	if !exists || err == zk.ErrNoNode {
-		_, err = w.zk.Create(w.nodeKey(), nil, 0, zk.WorldACL(zk.PermAll))
-		if err == nil || err == zk.ErrNodeExists {
-			_, _, ch, err = w.zk.GetW(w.nodeKey())
-			if err != nil {
-				return err
-			}
-			go w.watchNodes(ch)
-			return nil
-		}
-		return err
-	}
-	return err
-}
-
-func (w *Worker) watchNodes(ch <-chan zk.Event) {
-	for {
-		select {
-		case <-w.done:
-			return
-		case e := <-ch:
-			if e.Type == zk.EventNodeDeleted || e.Type == zk.EventNodeCreated {
-				w.mu.Lock()
-				//if !w.isLeader() {
-				//	w.mu.Unlock()
-				//	continue
-				//}
-				//err := w.partition(e.Path, e.Type)
-				//if err != nil {
-				//	l.Error().Err(err).Msgf("Cannot repartition ")
-				//}
-				w.mu.Unlock()
-			}
+			//TODO : perform maintenance here sleeping meanwhile
+			time.Sleep(time.Second)
 
 		}
 	}
@@ -263,12 +152,12 @@ func (w *Worker) nominate() {
 		attempts++
 		children, _, err := w.zk.Children(w.nodeKey())
 		if err != nil {
-			l.Error().Err(err)
+			w.logger.Error().Err(err)
 			continue
 		}
 
 		if len(children) == 0 {
-			l.Error().Msgf("no children present")
+			w.logger.Error().Msgf("no children present")
 			continue
 		}
 
@@ -279,14 +168,16 @@ func (w *Worker) nominate() {
 		})
 
 		w.mu.Lock()
-
 		if w.znode == children[0] {
-			l.Info().Msgf("I am the smallest children. Promoting to leader")
 			w.state = LEADER
 			w.mu.Unlock()
+			go w.refreshMembership(children)
 			break
 		}
+		w.state = FOLLOWER
+		w.mu.Unlock()
 
+		w.mu.RLock()
 		prev := 0
 		for i := 1; i < len(children); i++ {
 			if children[i] == w.znode {
@@ -295,7 +186,7 @@ func (w *Worker) nominate() {
 			prev = i
 		}
 		_ = w.setupPredecessorWatch(children[prev])
-		w.mu.Unlock()
+		w.mu.RUnlock()
 		break
 	}
 }
@@ -304,10 +195,10 @@ func (w *Worker) setupPredecessorWatch(prevMember string) error {
 	wpath := fmt.Sprintf("%s/%s", w.nodeKey(), prevMember)
 	_, _, ch, err := w.zk.ExistsW(wpath)
 	if err != nil {
-		l.Error().Err(err).Msgf("cannot setup watch for predecessor")
+		w.logger.Error().Err(err).Msgf("cannot setup watch for predecessor")
 		return err
 	}
-	l.Info().Msgf("predecessor for %s found. listening changes on %s", w.id, prevMember)
+	w.logger.Info().Msgf("predecessor for %s found. listening changes on %s", w.id, prevMember)
 	go w.watchPredecessor(ch)
 	return nil
 }
@@ -322,7 +213,7 @@ func (w *Worker) watchPredecessor(ch <-chan zk.Event) {
 				go w.nominate()
 				return
 			}
-			l.Warn().Msgf("predecessor watch fired with eventType=%d", e.Type)
+			w.logger.Warn().Msgf("predecessor watch fired with eventType=%d", e.Type)
 		}
 	}
 }
@@ -360,4 +251,52 @@ func (w *Worker) membershipKey() string {
 
 func (w *Worker) isLeader() bool {
 	return w.state == LEADER
+}
+
+func (w *Worker) refreshMembership(members []string) {
+	w.logger.Info().Msgf("elected as leader")
+}
+
+func (w *Worker) ensureMembershipNode() error {
+	exists, _, _, err := w.zk.ExistsW(w.membershipKey())
+	if exists {
+		return nil
+	}
+
+	if !exists || err == zk.ErrNoNode {
+		_, err = w.zk.Create(w.membershipKey(), nil, 0, zk.WorldACL(zk.PermAll))
+		if err == nil || err == zk.ErrNodeExists {
+			return nil
+		}
+		return err
+	}
+	return err
+}
+
+func (w *Worker) ensureZNodes() error {
+	err := w.ensureZnodePath(w.nsKey())
+	if err != nil {
+		return err
+	}
+
+	err = w.ensureZnodePath(w.nodeKey())
+	if err != nil {
+		return err
+	}
+
+	err = w.ensureZnodePath(w.membershipKey())
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (w *Worker) ensureZnodePath(path string) error {
+	_, err := w.zk.Create(path, []byte{}, 0, zk.WorldACL(zk.PermAll))
+	if err != nil && err != zk.ErrNodeExists {
+		w.logger.Error().Err(err).Msg("failed to create namespace key")
+		return err
+	}
+	return nil
 }
