@@ -1,4 +1,4 @@
-package storage
+package sql
 
 import "errors"
 
@@ -59,7 +59,7 @@ func (qm *QueryManager) completeJob() string {
 
 func (qm *QueryManager) getQuery(query string) (string, error) {
 	switch qm.driver {
-	case "mysql":
+	case "sql":
 		q, ok := mysql[query]
 		if !ok {
 			return "", ErrorWrongKey

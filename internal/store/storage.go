@@ -1,14 +1,18 @@
-package core
+package store
 
 import (
 	"context"
 
-	"github.com/hextechpal/prio/core/models"
+	"github.com/hextechpal/prio/internal/models"
 )
 
 type Storage interface {
+	// GetTopics :Creates a new topic
+	// TODO: Add support for filters and cache
+	//GetTopics(ctx context.Context) (int64, error)
+
 	// CreateTopic :Creates a new topic
-	CreateTopic(ctx context.Context, topic string, desciption string) (int64, error)
+	CreateTopic(ctx context.Context, topic string, description string) (int64, error)
 
 	// Enqueue : Persist a jon in to the datastore
 	Enqueue(ctx context.Context, job *models.Job) (int64, error)

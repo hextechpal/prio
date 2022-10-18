@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/go-zookeeper/zk"
-	"github.com/hextechpal/prio/worker/mock"
+	"github.com/hextechpal/prio/internal/worker/mock"
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -17,10 +19,20 @@ const (
 )
 
 var ns string
+var ctx context.Context
+var logger zerolog.Logger
 
 func init() {
 	rand.Seed(time.Now().UnixMilli())
-	ns = fmt.Sprintf("ns_%d", rand.Intn(100))
+	ns = fmt.Sprintf("ns_%d", rand.Intn(10000))
+	ctx = context.WithValue(context.Background(), "ns", ns)
+	logger = zerolog.
+		New(os.Stderr).
+		With().
+		Timestamp().
+		Str("ns", ns).
+		Logger().
+		Output(zerolog.ConsoleWriter{Out: os.Stderr})
 }
 
 type resp struct {
@@ -29,14 +41,14 @@ type resp struct {
 }
 
 func Test_leader_election_multi(t *testing.T) {
-	ctx := context.TODO()
+	defer cleanup()
 	t.Logf("Starting test for namespace %s", ns)
 	ch := make(chan resp)
 
 	wmap := make(map[string]*Worker)
 
 	for i := 0; i < wcount; i++ {
-		go setup(ctx, t, ch)
+		go setup(t, ch)
 	}
 
 	for i := 0; i < wcount; i++ {
@@ -49,7 +61,7 @@ func Test_leader_election_multi(t *testing.T) {
 
 	start := time.Now()
 	leaderId := ""
-	for leaderId == "" && time.Since(start) < 30*time.Second {
+	for leaderId == "" && time.Since(start) < 3*time.Second {
 		time.Sleep(100 * time.Millisecond)
 		leaderId = leader(wmap)
 	}
@@ -59,7 +71,6 @@ func Test_leader_election_multi(t *testing.T) {
 	}
 
 	t.Logf("leader id found %s", leaderId)
-	time.Sleep(10 * time.Second)
 	t.Logf("shutting down the leader %s", leaderId)
 	_ = wmap[leaderId].ShutDown()
 	delete(wmap, leaderId)
@@ -77,6 +88,10 @@ func Test_leader_election_multi(t *testing.T) {
 	t.Logf("newnleader id found %s. shutting down the leader", leaderId)
 }
 
+func cleanup() {
+
+}
+
 func leader(workers map[string]*Worker) string {
 	for id, w := range workers {
 		if w.isLeader() {
@@ -87,9 +102,8 @@ func leader(workers map[string]*Worker) string {
 }
 
 func Test_leader_election_single(t *testing.T) {
-	ctx := context.TODO()
 	ch := make(chan resp)
-	go setup(ctx, t, ch)
+	go setup(t, ch)
 	r := <-ch
 
 	if r.err != nil {
@@ -107,12 +121,12 @@ func Test_leader_election_single(t *testing.T) {
 	}
 }
 
-func setup(ctx context.Context, t *testing.T, ch chan resp) {
+func setup(t *testing.T, ch chan resp) {
 	t.Helper()
 	conn, _, err := zk.Connect([]string{zkHost}, 60*time.Second)
 	if err != nil {
 		panic(err)
 	}
-	w, err := NewWorker(ns, mock.NewMemoryStorage(), conn)
+	w, err := NewWorker(ctx, ns, conn, mock.NewMemoryStorage(), &logger)
 	ch <- resp{w, err}
 }
