@@ -1,10 +1,6 @@
 package config
 
 import (
-	"fmt"
-	"math/rand"
-	"time"
-
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -30,9 +26,7 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	rand.Seed(time.Now().UnixMilli())
 	cfg := Config{}
 	err := envconfig.Process("", &cfg)
-	cfg.Namespace = fmt.Sprintf("%s%d", cfg.Namespace, rand.Intn(1000))
 	return &cfg, err
 }

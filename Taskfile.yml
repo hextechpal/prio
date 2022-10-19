@@ -1,0 +1,21 @@
+version: 3
+
+tasks:
+  build:
+    vars:
+      GOOS:
+        sh: go env GOOS
+      GOARCH:
+        sh: go env GOARCH
+    cmds:
+      - go build -o release/{{.GOOS}}/{{.GOARCH}}/prio
+
+  start:
+    deps: [build]
+    vars:
+      GOOS:
+        sh: go env GOOS
+      GOARCH:
+        sh: go env GOARCH
+    cmds:
+      - ./release/{{.GOOS}}/{{.GOARCH}}/prio worker

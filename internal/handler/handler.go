@@ -38,7 +38,7 @@ func (h *Handler) Register(g *echo.Group) {
 
 func (h *Handler) enqueue() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		req := worker.EnqueueRequest{}
+		req := EnqueueRequest{}
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, err)
 		}
@@ -46,13 +46,13 @@ func (h *Handler) enqueue() echo.HandlerFunc {
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, err)
 		}
-		return c.JSON(http.StatusOK, worker.EnqueueResponse{JobId: jobId})
+		return c.JSON(http.StatusOK, EnqueueResponse{JobId: jobId})
 	}
 }
 
 func (h *Handler) dequeue() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		req := worker.DequeueRequest{}
+		req := DequeueRequest{}
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, err)
 		}
@@ -66,7 +66,7 @@ func (h *Handler) dequeue() echo.HandlerFunc {
 
 func (h *Handler) registerTopic() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		req := worker.RegisterTopicRequest{}
+		req := RegisterTopicRequest{}
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, err)
 		}
@@ -74,13 +74,13 @@ func (h *Handler) registerTopic() echo.HandlerFunc {
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, err)
 		}
-		return c.JSON(http.StatusOK, worker.RegisterTopicResponse{TopicID: topicID})
+		return c.JSON(http.StatusOK, RegisterTopicResponse{TopicID: topicID})
 	}
 }
 
 func (h *Handler) ack() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		req := worker.AckRequest{}
+		req := AckRequest{}
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, err)
 		}
@@ -88,11 +88,11 @@ func (h *Handler) ack() echo.HandlerFunc {
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, err)
 		}
-		return c.JSON(http.StatusOK, worker.AckResponse{Acked: true})
+		return c.JSON(http.StatusOK, AckResponse{Acked: true})
 	}
 }
 
-func toJob(r *worker.EnqueueRequest) *models.Job {
+func toJob(r *EnqueueRequest) *models.Job {
 	return &models.Job{
 		Payload:   r.Payload,
 		Priority:  r.Priority,
@@ -103,8 +103,8 @@ func toJob(r *worker.EnqueueRequest) *models.Job {
 	}
 }
 
-func toDequeue(job *models.Job) worker.DequeueResponse {
-	return worker.DequeueResponse{
+func toDequeue(job *models.Job) DequeueResponse {
+	return DequeueResponse{
 		JobId:    job.ID,
 		Topic:    job.Topic,
 		Payload:  job.Payload,

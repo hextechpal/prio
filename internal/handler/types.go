@@ -1,4 +1,4 @@
-package worker
+package handler
 
 type RegisterTopicRequest struct {
 	Name        string

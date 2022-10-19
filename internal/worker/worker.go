@@ -161,17 +161,17 @@ func (w *Worker) nominate() {
 			continue
 		}
 
-		sort.SliceIsSorted(children, func(i, j int) bool {
+		sort.Slice(children, func(i, j int) bool {
 			i1, _ := strconv.Atoi(children[i][24:])
 			i2, _ := strconv.Atoi(children[j][24:])
 			return i1 < i2
 		})
 
+		w.logger.Info().Msgf("Found %d children %v", len(children), children)
 		w.mu.Lock()
 		if w.znode == children[0] {
 			w.state = LEADER
 			w.mu.Unlock()
-			go w.refreshMembership(children)
 			break
 		}
 		w.state = FOLLOWER
@@ -251,26 +251,6 @@ func (w *Worker) membershipKey() string {
 
 func (w *Worker) isLeader() bool {
 	return w.state == LEADER
-}
-
-func (w *Worker) refreshMembership(members []string) {
-	w.logger.Info().Msgf("elected as leader")
-}
-
-func (w *Worker) ensureMembershipNode() error {
-	exists, _, _, err := w.zk.ExistsW(w.membershipKey())
-	if exists {
-		return nil
-	}
-
-	if !exists || err == zk.ErrNoNode {
-		_, err = w.zk.Create(w.membershipKey(), nil, 0, zk.WorldACL(zk.PermAll))
-		if err == nil || err == zk.ErrNodeExists {
-			return nil
-		}
-		return err
-	}
-	return err
 }
 
 func (w *Worker) ensureZNodes() error {
