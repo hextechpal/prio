@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -79,7 +80,7 @@ func NewWorker(ctx context.Context, namespace string, zk *zk.Conn, s store.Stora
 
 	// Nominate current instance to be the leader
 	// If the leader already exist this will setup a watch to the predecessor znode
-	go w.nominate()
+	go w.startElection()
 
 	// This instance is responsible for a subset of the topics
 	go w.startMaintenance()
@@ -146,26 +147,15 @@ func (w *Worker) getMembershipData() (*membershipInfo, *zk.Stat, error) {
 	return &minfo, stat, nil
 }
 
-func (w *Worker) nominate() {
+func (w *Worker) startElection() {
 	attempts := 0
 	for attempts < 3 {
 		attempts++
-		children, _, err := w.zk.Children(w.nodeKey())
+		children, err := w.getChildren()
 		if err != nil {
 			w.logger.Error().Err(err)
 			continue
 		}
-
-		if len(children) == 0 {
-			w.logger.Error().Msgf("no children present")
-			continue
-		}
-
-		sort.Slice(children, func(i, j int) bool {
-			i1, _ := strconv.Atoi(children[i][24:])
-			i2, _ := strconv.Atoi(children[j][24:])
-			return i1 < i2
-		})
 
 		w.logger.Info().Msgf("Found %d children %v", len(children), children)
 		w.mu.Lock()
@@ -185,10 +175,36 @@ func (w *Worker) nominate() {
 			}
 			prev = i
 		}
-		_ = w.setupPredecessorWatch(children[prev])
 		w.mu.RUnlock()
+		err = w.setupPredecessorWatch(children[prev])
+		if err != nil {
+			// This means that the previous node was deleted and hence this node again starts a new election
+			go w.startElection()	
+		}
 		break
 	}
+
+	if attempts == 3 {
+		w.logger.Error().Msg("error in election")	
+	}
+}
+
+func (w *Worker) getChildren() ([]string, error){
+	children, _, err := w.zk.Children(w.nodeKey())
+	if err != nil {
+		return []string{}, err
+	}
+
+	if len(children) == 0{
+		return []string{}, errors.New("no children found")
+	}
+	sort.Slice(children, func(i, j int) bool {
+		i1, _ := strconv.Atoi(children[i][24:])
+		i2, _ := strconv.Atoi(children[j][24:])
+		return i1 < i2
+	})
+
+	return children, nil
 }
 
 func (w *Worker) setupPredecessorWatch(prevMember string) error {
@@ -210,7 +226,7 @@ func (w *Worker) watchPredecessor(ch <-chan zk.Event) {
 			return
 		case e := <-ch:
 			if e.Type == zk.EventNodeDeleted {
-				go w.nominate()
+				go w.startElection()
 				return
 			}
 			w.logger.Warn().Msgf("predecessor watch fired with eventType=%d", e.Type)
