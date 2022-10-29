@@ -21,7 +21,7 @@ type Config struct {
 
 	Zk struct {
 		Servers   []string `envconfig:"PRIO_ZK_SERVERS"`    // list of zookeeper servers
-		TimeoutMs int32    `envconfig:"PRIO_ZK_TIMEOUT_MS"` // timeout in mllisecond
+		TimeoutMs int32    `envconfig:"PRIO_ZK_TIMEOUT_MS"` // timeout in millisecond
 	}
 }
 
