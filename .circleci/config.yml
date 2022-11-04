@@ -17,7 +17,7 @@ jobs:
       - run:
           name: "Say hello"
           command: "echo Hello, World!"
-    parallelism: 100
+    parallelism: 10
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
