@@ -17,7 +17,7 @@ jobs:
       - run:
           name: "Say hello"
           command: "echo Hello, World!"
-    parallelism: 3
+    parallelism: 30
   
 
 # Invoke jobs via workflows
