@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-zookeeper/zk"
+	"github.com/hextechpal/prio/internal/store/memory"
 	"github.com/hextechpal/prio/internal/worker"
-	"github.com/hextechpal/prio/internal/worker/mock"
 	"github.com/rs/zerolog"
 	"math/rand"
 	"os"
@@ -130,6 +130,6 @@ func Test_leader_election_single(t *testing.T) {
 
 func setup(t *testing.T, ch chan resp) {
 	t.Helper()
-	w := worker.NewWorker(ctx, ns, []string{zkHost}, time.Second, mock.NewMemoryStorage(), &logger)
+	w := worker.NewWorker(ctx, ns, []string{zkHost}, time.Second, memory.NewStorage(), &logger)
 	ch <- resp{w, w.Start()}
 }

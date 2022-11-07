@@ -75,13 +75,13 @@ func (w *Worker) Start() error {
 	if err != nil {
 		return err
 	}
-	go w.monitor(elector, zkCh)
+	go w.work(elector, zkCh)
 	return nil
 }
 
-// monitor : Forever running go routine which is responsible for listening to membership changes.
+// work : Forever running go routine which is responsible for listening to membership changes.
 // It also performs clean up for tasks in case the acknowledgement is not
-func (w *Worker) monitor(elector *election.Elector, _ <-chan zk.Event) {
+func (w *Worker) work(elector *election.Elector, _ <-chan zk.Event) {
 	go elector.Elect(w.ID)
 	t := time.NewTicker(1000 * time.Millisecond)
 	for {
