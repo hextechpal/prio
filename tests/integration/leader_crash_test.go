@@ -1,16 +1,16 @@
-package worker
+package integration
 
 import (
 	"context"
 	"fmt"
+	"github.com/go-zookeeper/zk"
+	"github.com/hextechpal/prio/internal/worker"
+	"github.com/hextechpal/prio/internal/worker/mock"
+	"github.com/rs/zerolog"
 	"math/rand"
 	"os"
 	"testing"
 	"time"
-
-	"github.com/go-zookeeper/zk"
-	"github.com/hextechpal/prio/internal/worker/mock"
-	"github.com/rs/zerolog"
 )
 
 const (
@@ -19,10 +19,12 @@ const (
 )
 
 var ns string
+var conn *zk.Conn
 var ctx context.Context
 var logger zerolog.Logger
 
 func init() {
+	var err error
 	rand.Seed(time.Now().UnixMilli())
 	ns = fmt.Sprintf("ns_%d", rand.Intn(10000))
 	ctx = context.WithValue(context.Background(), "ns", ns)
@@ -33,10 +35,15 @@ func init() {
 		Str("ns", ns).
 		Logger().
 		Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
+	conn, _, err = zk.Connect([]string{zkHost}, 60*time.Second)
+	if err != nil {
+		panic(err)
+	}
 }
 
 type resp struct {
-	w   *Worker
+	w   *worker.Worker
 	err error
 }
 
@@ -45,7 +52,7 @@ func Test_leader_election_multi(t *testing.T) {
 	t.Logf("Starting test for namespace %s", ns)
 	ch := make(chan resp)
 
-	wmap := make(map[string]*Worker)
+	wmap := make(map[string]*worker.Worker)
 
 	for i := 0; i < wcount; i++ {
 		go setup(t, ch)
@@ -56,7 +63,7 @@ func Test_leader_election_multi(t *testing.T) {
 		if r.err != nil {
 			t.Fatalf("error intilizing worker err=%v", r.err)
 		}
-		wmap[r.w.id] = r.w
+		wmap[r.w.ID] = r.w
 	}
 
 	start := time.Now()
@@ -89,12 +96,12 @@ func Test_leader_election_multi(t *testing.T) {
 }
 
 func cleanup() {
-
+	_ = conn.Delete(fmt.Sprintf("/prio/%s", ns), -1)
 }
 
-func leader(workers map[string]*Worker) string {
+func leader(workers map[string]*worker.Worker) string {
 	for id, w := range workers {
-		if w.isLeader() {
+		if w.IsLeader() {
 			return id
 		}
 	}
@@ -112,21 +119,17 @@ func Test_leader_election_single(t *testing.T) {
 
 	w := r.w
 	start := time.Now()
-	for !w.isLeader() && time.Since(start) < 30*time.Second {
+	for !w.IsLeader() && time.Since(start) < 30*time.Second {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	if !w.isLeader() {
+	if !w.IsLeader() {
 		t.Errorf("woker is not selected as leader")
 	}
 }
 
 func setup(t *testing.T, ch chan resp) {
 	t.Helper()
-	conn, _, err := zk.Connect([]string{zkHost}, 60*time.Second)
-	if err != nil {
-		panic(err)
-	}
-	w, err := NewWorker(ctx, ns, conn, mock.NewMemoryStorage(), &logger)
-	ch <- resp{w, err}
+	w := worker.NewWorker(ctx, ns, []string{zkHost}, time.Second, mock.NewMemoryStorage(), &logger)
+	ch <- resp{w, w.Start()}
 }

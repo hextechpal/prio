@@ -2,12 +2,12 @@ package handler
 
 import (
 	"context"
+	"github.com/hextechpal/prio/internal/config"
+	"github.com/hextechpal/prio/internal/store/sql"
 	"net/http"
 	"time"
 
-	"github.com/go-zookeeper/zk"
 	"github.com/hextechpal/prio/internal/models"
-	"github.com/hextechpal/prio/internal/store"
 	"github.com/hextechpal/prio/internal/worker"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
@@ -18,15 +18,15 @@ type Handler struct {
 	logger *zerolog.Logger
 }
 
-func NewHandler(ctx context.Context, namespace string, s store.Storage, conn *zk.Conn, logger *zerolog.Logger) (*Handler, error) {
-	w, err := worker.NewWorker(ctx, namespace, conn, s, logger)
+func NewHandler(ctx context.Context, config *config.Config, s *sql.Storage, logger *zerolog.Logger) (*Handler, error) {
+	timeout := time.Duration(config.Zk.TimeoutMs) * time.Millisecond
+	w := worker.NewWorker(ctx, config.Namespace, config.Zk.Servers, timeout, s, logger)
+	err := w.Start()
+
 	if err != nil {
 		return nil, err
 	}
-	return &Handler{
-		w:      w,
-		logger: logger,
-	}, nil
+	return &Handler{w: w, logger: logger}, nil
 }
 
 func (h *Handler) Register(g *echo.Group) {

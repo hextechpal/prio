@@ -3,12 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"os"
-	"os/signal"
-	"time"
-
-	"github.com/go-zookeeper/zk"
 	"github.com/hextechpal/prio/internal/config"
 	"github.com/hextechpal/prio/internal/handler"
 	"github.com/hextechpal/prio/internal/router"
@@ -17,6 +11,9 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+	"net/http"
+	"os"
+	"os/signal"
 )
 
 const envarg = "envfile"
@@ -55,18 +52,13 @@ func setupServer(config *config.Config) {
 		panic(err)
 	}
 
-	conn, _, err := zk.Connect(config.Zk.Servers, time.Duration(config.Zk.TimeoutMs)*time.Millisecond, zk.WithLogger(logger))
-	if err != nil {
-		panic(err)
-	}
-
 	r := router.New(config.Debug)
 	r.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!")
 	})
 
 	g := r.Group("v1")
-	h, err := handler.NewHandler(ctx, config.Namespace, storage, conn, logger)
+	h, err := handler.NewHandler(ctx, config, storage, logger)
 	if err != nil {
 		panic(err)
 	}
