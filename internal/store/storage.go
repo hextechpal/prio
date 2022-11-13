@@ -22,4 +22,7 @@ type Storage interface {
 
 	// Ack :
 	Ack(ctx context.Context, topic string, id int64, consumer string) error
+
+	// ReQueue :
+	ReQueue(ctx context.Context, topic string, lastTs int64) (int, error)
 }

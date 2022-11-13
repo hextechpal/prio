@@ -19,6 +19,8 @@ var mysql = map[string]string{
 
 	"jobById":     `SELECT jobs.id, jobs.status from jobs where jobs.id = ? AND jobs.topic = ? FOR UPDATE `,
 	"completeJob": `UPDATE jobs SET status = ?, completed_at = ? WHERE jobs.id = ?`,
+
+	"reQueue": `UPDATE jobs SET status = ?, claimed_at = ?, claimed_by = ?, updated_at = ? WHERE jobs.topic = ? AND jobs.status = ? AND jobs.claimed_at < ?`,
 }
 
 type QueryManager struct {
@@ -75,4 +77,9 @@ func (qm *QueryManager) getQuery(query string) (string, error) {
 	default:
 		return "", ErrorUnsupportedDriver
 	}
+}
+
+func (qm *QueryManager) reQueue() string {
+	q, _ := qm.getQuery("reQueue")
+	return q
 }

@@ -22,24 +22,27 @@ const (
 	partitionNode  = "/prio/%s/partition"
 )
 
-type Worker struct {
-	mu sync.RWMutex
+type (
+	Worker struct {
+		mu sync.RWMutex
 
-	Namespace string    // Namespace: identifies a group of connected prio instances
-	ID        string    // ID: unique ID of the prio worker instance
-	done      chan bool // done : channel to signal the all the go routines to stop as worker is shutting down
+		Namespace string    // Namespace: identifies a group of connected prio instances
+		ID        string    // ID: unique ID of the prio worker instance
+		done      chan bool // done : channel to signal the all the go routines to stop as worker is shutting down
 
-	store.Storage // Storage underneath storage implementation
+		store.Storage // Storage underneath storage implementation
 
-	zkServers []string      // zkServers: slice of zookeeper servers to connect to
-	timeout   time.Duration // timeout: zookeeper connection timeout
-	conn      *zk.Conn      // conn zookeeper connection
-	ldrDoneCh chan any      // ldrDoneCh inform the leader to stop watch on membership node
-	role      election.Role // role: role assumed by the worker
+		zkServers []string      // zkServers: slice of zookeeper servers to connect to
+		timeout   time.Duration // timeout: zookeeper connection timeout
+		conn      *zk.Conn      // conn zookeeper connection
+		ldrDoneCh chan any      // ldrDoneCh inform the leader to stop watch on membership node
+		role      election.Role // role: role assumed by the worker
 
-	logger *zerolog.Logger // logger
+		logger *zerolog.Logger // logger
+	}
 
-}
+	membershipData map[string]map[string]bool
+)
 
 // NewWorker : Initializes a new prio instance registers it with zookeeper
 // It also starts all the watchers and background workers
@@ -97,7 +100,7 @@ func (w *Worker) Start() error {
 // It also performs clean up for tasks in case the acknowledgement is not
 func (w *Worker) work(elector *election.Elector, _ <-chan zk.Event) {
 	go elector.Elect(w.ID)
-	t := time.NewTicker(1000 * time.Millisecond)
+	t := time.NewTicker(5 * time.Second)
 	for {
 		select {
 		case <-w.done:
@@ -105,7 +108,10 @@ func (w *Worker) work(elector *election.Elector, _ <-chan zk.Event) {
 			elector.Resign()
 			return
 		case <-t.C:
-			w.maintain()
+			err := w.maintain()
+			if err != nil {
+				w.logger.Error().Err(err)
+			}
 		case status := <-elector.Status():
 			if status.Err != nil {
 				w.logger.Error().Err(status.Err)
@@ -201,14 +207,37 @@ func (w *Worker) followerSetup() {
 	}
 }
 
-func (w *Worker) maintain() {
+func (w *Worker) maintain() error {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	if w.role != election.LEADER {
-		return
+	data, _, err := w.conn.Get(fmt.Sprintf(partitionNode, w.Namespace))
+	if err != nil {
+		return err
 	}
 
+	var mdata membershipData
+	err = json.Unmarshal(data, &mdata)
+	if err != nil {
+		return err
+	}
+
+	if topicMap, ok := mdata[w.ID]; ok {
+		w.logger.Info().Msgf("starting maintenance topics=%v", topicMap)
+		for topic := range topicMap {
+			go func(tName string) {
+				lastTime := time.Now().Add(-10 * time.Second)
+				count, err := w.ReQueue(context.Background(), tName, lastTime.UnixMilli())
+				if err != nil {
+					w.logger.Error().Err(err).Msgf("failed for requeue jobs for topic %s", tName)
+					return
+				}
+				w.logger.Info().Msgf("requeued jobs=%d, topic=%s", count, tName)
+			}(topic)
+		}
+	}
+
+	return nil
 }
 
 func (w *Worker) watchMembers(ch <-chan zk.Event) {
@@ -255,7 +284,7 @@ func (w *Worker) reBalanceChildren(children []string) error {
 	}
 
 	w.logger.Info().Msgf("partition: %v", partition)
-	data, err := json.Marshal(partition)
+	data, err := json.Marshal(membershipData(partition))
 	if err != nil {
 		return err
 	}

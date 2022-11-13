@@ -143,3 +143,12 @@ func (s *Storage) Ack(ctx context.Context, topic string, id int64, consumer stri
 
 	return nil
 }
+
+func (s *Storage) ReQueue(ctx context.Context, topic string, lastTs int64) (int, error) {
+	result, err := s.ExecContext(ctx, s.qm.reQueue(), models.PENDING, nil, nil, time.Now().UnixMilli(), topic, models.CLAIMED, lastTs)
+	if err != nil {
+		return 0, err
+	}
+	rows, _ := result.RowsAffected()
+	return int(rows), nil
+}

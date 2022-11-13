@@ -52,3 +52,8 @@ func (m *Storage) GetTopics(ctx context.Context) ([]string, error) {
 	//TODO implement me
 	panic("implement me")
 }
+
+func (m *Storage) ReQueue(ctx context.Context, topic string, lastTs int64) (int, error) {
+	//TODO implement me
+	panic("implement me")
+}

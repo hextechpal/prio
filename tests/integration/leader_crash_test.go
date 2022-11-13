@@ -95,10 +95,6 @@ func Test_leader_election_multi(t *testing.T) {
 	t.Logf("newnleader id found %s. shutting down the leader", leaderId)
 }
 
-func cleanup() {
-	_ = conn.Delete(fmt.Sprintf("/prio/%s", ns), -1)
-}
-
 func leader(workers map[string]*worker.Worker) string {
 	for id, w := range workers {
 		if w.IsLeader() {
@@ -132,4 +128,8 @@ func setup(t *testing.T, ch chan resp) {
 	t.Helper()
 	w := worker.NewWorker(ctx, ns, []string{zkHost}, time.Second, memory.NewStorage(), &logger)
 	ch <- resp{w, w.Start()}
+}
+
+func cleanup() {
+	_ = conn.Delete(fmt.Sprintf("/prio/%s", ns), -1)
 }
