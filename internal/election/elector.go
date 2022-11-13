@@ -31,7 +31,6 @@ type (
 		// Zookeeper channels
 		myCh          <-chan zk.Event // myCh channel watches the events for the znode created for the instance
 		predecessorCh <-chan zk.Event // predecessorCh channel watched for predecessor delete events and trigger a check if deleted
-		doneCh        <-chan zk.Event // doneCh watches the done node on zookeeper, if created then ends the election
 
 		// Internal channels for communication
 		triggerElectionCh chan error // triggerElectionCh watches for trigger election events
@@ -49,8 +48,6 @@ const (
 
 	sep = "/"
 )
-
-var ErrorElectionEnded = errors.New("leader elected")
 
 func (s Status) String() string {
 	return fmt.Sprintf("canditateId=%s, role=%d, following=%s, err=%s", s.CandidateId, s.Role, s.Following, s.Err)
@@ -254,10 +251,6 @@ func (e *Elector) setPredecessorWatch(follow string) (<-chan zk.Event, error) {
 func (e *Elector) watchLeader() {
 	for {
 		select {
-		case _ = <-e.doneCh:
-			e.logger.Info().Msgf("watchLeader: done node created/deleted sending notification to triggerElectionCh")
-			e.triggerElectionCh <- fmt.Errorf("election completed")
-			return
 		case event := <-e.myCh:
 			e.logger.Info().Msgf("predecessor node deleted sending notification to triggerElectionCh")
 			if event.Type == zk.EventNodeDeleted {
@@ -275,20 +268,6 @@ func (e *Elector) watchLeader() {
 func (e *Elector) watchPredecessor() {
 	for {
 		select {
-		case event := <-e.doneCh:
-			if event.Type == zk.EventNodeDeleted {
-				e.logger.Info().Msgf("watchPredecessor: done node deleted sending notification to triggerElectionCh")
-				e.triggerElectionCh <- nil
-				return
-			}
-
-			if event.Type == zk.EventNodeCreated {
-				e.logger.Info().Msgf("watchPredecessor: done node deleted end election")
-				e.triggerElectionCh <- ErrorElectionEnded
-				return
-			}
-
-			return
 		case event := <-e.predecessorCh:
 			if event.Type == zk.EventNodeDeleted {
 				e.logger.Info().Msgf("predecessor node deleted sending notification to triggerElectionCh")

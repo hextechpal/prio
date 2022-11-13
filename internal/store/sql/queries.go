@@ -8,6 +8,8 @@ var (
 )
 
 var mysql = map[string]string{
+	"allTopics": `SELECT topics.name from topics`,
+
 	"addTopic": `INSERT INTO topics(name, description, created_at, updated_at) VALUES (?, ?, ?, ?)`,
 
 	"addJob": `INSERT INTO jobs(topic, payload, priority, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -29,6 +31,11 @@ func NewQueryManager(driver string) *QueryManager {
 
 func (qm *QueryManager) addTopic() string {
 	q, _ := qm.getQuery("addTopic")
+	return q
+}
+
+func (qm *QueryManager) allTopics() string {
+	q, _ := qm.getQuery("allTopics")
 	return q
 }
 
@@ -59,7 +66,7 @@ func (qm *QueryManager) completeJob() string {
 
 func (qm *QueryManager) getQuery(query string) (string, error) {
 	switch qm.driver {
-	case "sql":
+	case "mysql":
 		q, ok := mysql[query]
 		if !ok {
 			return "", ErrorWrongKey

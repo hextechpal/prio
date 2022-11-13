@@ -3,10 +3,10 @@ package sql
 import (
 	"context"
 	"database/sql"
+	"github.com/hextechpal/prio/internal/store"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/hextechpal/prio/internal"
 	"github.com/hextechpal/prio/internal/models"
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog"
@@ -35,6 +35,15 @@ func NewStorage(driver string, dsn string, logger *zerolog.Logger) (*Storage, er
 		logger: logger,
 	}
 	return s, nil
+}
+
+func (s *Storage) GetTopics(ctx context.Context) ([]string, error) {
+	var topics []string
+	err := s.SelectContext(ctx, &topics, s.qm.allTopics())
+	if err != nil {
+		return []string{}, err
+	}
+	return topics, nil
 }
 
 func (s *Storage) CreateTopic(ctx context.Context, name, description string) (int64, error) {
@@ -70,7 +79,7 @@ func (s *Storage) Dequeue(ctx context.Context, topic string, consumer string) (*
 	err := s.GetContext(ctx, &job, s.qm.topJob(), topic, models.PENDING)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, internal.ErrorJobNotPresent
+			return nil, store.ErrorJobNotPresent
 		}
 		return nil, err
 	}
@@ -81,7 +90,7 @@ func (s *Storage) Dequeue(ctx context.Context, topic string, consumer string) (*
 	}
 
 	if affected, err := result.RowsAffected(); err != nil || affected == 0 {
-		return nil, internal.ErrorJobNotAcquired
+		return nil, store.ErrorJobNotAcquired
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -102,21 +111,21 @@ func (s *Storage) Ack(ctx context.Context, topic string, id int64, consumer stri
 	err := s.GetContext(ctx, &job, s.qm.jobById(), id, topic)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return internal.ErrorJobNotPresent
+			return store.ErrorJobNotPresent
 		}
 		return err
 	}
 
 	if job.Status == models.COMPLETED {
-		return internal.ErrorAlreadyAcked
+		return store.ErrorAlreadyAcked
 	}
 
 	if job.Status == models.PENDING {
-		return internal.ErrorLeaseExceeded
+		return store.ErrorLeaseExceeded
 	}
 
 	if job.Status == models.CLAIMED && *job.ClaimedBy != consumer {
-		return internal.ErrorWrongConsumer
+		return store.ErrorWrongConsumer
 	}
 
 	result, err := tx.ExecContext(ctx, s.qm.completeJob(), models.CLAIMED, time.Now().UnixMilli(), job.ID)
@@ -125,7 +134,7 @@ func (s *Storage) Ack(ctx context.Context, topic string, id int64, consumer stri
 	}
 
 	if affected, _ := result.RowsAffected(); affected == 0 {
-		return internal.ErrorGeneral
+		return store.ErrorGeneral
 	}
 
 	if err = tx.Commit(); err != nil {

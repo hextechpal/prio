@@ -47,3 +47,8 @@ func (m *Storage) Ack(ctx context.Context, topic string, id int64, consumer stri
 	//TODO implement me
 	panic("implement me")
 }
+
+func (m *Storage) GetTopics(ctx context.Context) ([]string, error) {
+	//TODO implement me
+	panic("implement me")
+}

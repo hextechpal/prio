@@ -9,7 +9,7 @@ import (
 type Storage interface {
 	// GetTopics :Creates a new topic
 	// TODO: Add support for filters and cache
-	//GetTopics(ctx context.Context) (int64, error)
+	GetTopics(ctx context.Context) ([]string, error)
 
 	// CreateTopic :Creates a new topic
 	CreateTopic(ctx context.Context, topic string, description string) (int64, error)
