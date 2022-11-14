@@ -5,8 +5,8 @@ go 1.19
 require (
 	github.com/go-zookeeper/zk v1.0.3
 	github.com/hextechpal/prio/core v0.0.0-20221114132924-a785f445ba9f
-	github.com/hextechpal/prio/inmemory-engine v0.0.0-20221114135318-3a707cc3c0eb
-	github.com/hextechpal/prio/mysql-backend v0.0.0-20221114133453-ace062c9ec18
+	github.com/hextechpal/prio/engine/memory v0.0.0-20221114141124-362654d5a344
+	github.com/hextechpal/prio/engine/mysql v0.0.0-20221114141124-362654d5a344
 	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/labstack/echo/v4 v4.9.1
@@ -34,4 +34,9 @@ require (
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324 // indirect
 )
 
-replace github.com/hextechpal/prio/core => ../core
+replace (
+	//github.com/hextechpal/prio/commons => ../commons
+	//github.com/hextechpal/prio/core => ../core
+	//github.com/hextechpal/prio/engine/memory => ../engine/memory
+	//github.com/hextechpal/prio/engine/mysql => ../engine/mysql
+)

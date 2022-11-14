@@ -12,34 +12,43 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const (
+	allTopics = `SELECT topics.name from topics`
+	addTopic  = `INSERT INTO topics(name, description, created_at, updated_at) VALUES (?, ?, ?, ?)`
+
+	addJob = `INSERT INTO jobs(topic, payload, priority, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+
+	topJob   = `SELECT jobs.id, jobs.payload, jobs.priority from jobs where jobs.topic = ? AND jobs.status = ? ORDER BY priority DESC, updated_at LIMIT 1 FOR UPDATE`
+	claimJob = `UPDATE jobs SET status = ?, claimed_at = ?, claimed_by = ?  WHERE jobs.id = ?`
+
+	jobById     = `SELECT jobs.id, jobs.status from jobs where jobs.id = ? AND jobs.topic = ? FOR UPDATE `
+	completeJob = `UPDATE jobs SET status = ?, completed_at = ? WHERE jobs.id = ?`
+
+	reQueue = `UPDATE jobs SET status = ?, claimed_at = ?, claimed_by = ?, updated_at = ? WHERE jobs.topic = ? AND jobs.status = ? AND jobs.claimed_at < ?`
+)
+
 type Engine struct {
 	*sqlx.DB
-	driver string
-	dsn    string
-	qm     *QueryManager
+	config Config
 	logger *zerolog.Logger
 }
 
-func NewEngine(driver string, dsn string, logger *zerolog.Logger) (*Engine, error) {
-	db, err := sqlx.Connect(driver, dsn)
+func NewEngine(config Config) (*Engine, error) {
+	db, err := sqlx.Connect("mysql", config.dsn())
 	if err != nil {
-		logger.Error().Err(err)
 		return nil, err
 	}
 
 	s := &Engine{
 		DB:     db,
-		driver: driver,
-		dsn:    dsn,
-		qm:     NewQueryManager(driver),
-		logger: logger,
+		config: config,
 	}
 	return s, nil
 }
 
 func (s *Engine) GetTopics(ctx context.Context) ([]string, error) {
 	var topics []string
-	err := s.SelectContext(ctx, &topics, s.qm.allTopics())
+	err := s.SelectContext(ctx, &topics, allTopics)
 	if err != nil {
 		return []string{}, err
 	}
@@ -47,7 +56,7 @@ func (s *Engine) GetTopics(ctx context.Context) ([]string, error) {
 }
 
 func (s *Engine) CreateTopic(ctx context.Context, name, description string) (int64, error) {
-	r, err := s.ExecContext(ctx, s.qm.addTopic(), name, description, time.Now().UnixMilli(), time.Now().UnixMilli())
+	r, err := s.ExecContext(ctx, addTopic, name, description, time.Now().UnixMilli(), time.Now().UnixMilli())
 	if err != nil {
 		return -1, err
 	}
@@ -56,7 +65,7 @@ func (s *Engine) CreateTopic(ctx context.Context, name, description string) (int
 }
 
 func (s *Engine) Enqueue(ctx context.Context, job *models.Job) (int64, error) {
-	r, err := s.ExecContext(ctx, s.qm.addJob(), job.Topic, job.Payload, job.Priority, job.Status, time.Now().UnixMilli(), time.Now().UnixMilli())
+	r, err := s.ExecContext(ctx, addJob, job.Topic, job.Payload, job.Priority, job.Status, time.Now().UnixMilli(), time.Now().UnixMilli())
 	if err != nil {
 		return -1, err
 	}
@@ -76,7 +85,7 @@ func (s *Engine) Dequeue(ctx context.Context, topic string, consumer string) (*m
 	}()
 
 	var job models.Job
-	err := s.GetContext(ctx, &job, s.qm.topJob(), topic, models.PENDING)
+	err := s.GetContext(ctx, &job, topJob, topic, models.PENDING)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, core.ErrorJobNotPresent
@@ -84,7 +93,7 @@ func (s *Engine) Dequeue(ctx context.Context, topic string, consumer string) (*m
 		return nil, err
 	}
 
-	result, err := tx.ExecContext(ctx, s.qm.claimJob(), models.CLAIMED, time.Now().UnixMilli(), consumer, job.ID)
+	result, err := tx.ExecContext(ctx, claimJob, models.CLAIMED, time.Now().UnixMilli(), consumer, job.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +117,7 @@ func (s *Engine) Ack(ctx context.Context, topic string, id int64, consumer strin
 	}()
 
 	var job models.Job
-	err := s.GetContext(ctx, &job, s.qm.jobById(), id, topic)
+	err := s.GetContext(ctx, &job, jobById, id, topic)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return core.ErrorJobNotPresent
@@ -128,7 +137,7 @@ func (s *Engine) Ack(ctx context.Context, topic string, id int64, consumer strin
 		return core.ErrorWrongConsumer
 	}
 
-	result, err := tx.ExecContext(ctx, s.qm.completeJob(), models.CLAIMED, time.Now().UnixMilli(), job.ID)
+	result, err := tx.ExecContext(ctx, completeJob, models.CLAIMED, time.Now().UnixMilli(), job.ID)
 	if err != nil {
 		return err
 	}
@@ -145,7 +154,7 @@ func (s *Engine) Ack(ctx context.Context, topic string, id int64, consumer strin
 }
 
 func (s *Engine) ReQueue(ctx context.Context, topic string, lastTs int64) (int, error) {
-	result, err := s.ExecContext(ctx, s.qm.reQueue(), models.PENDING, nil, nil, time.Now().UnixMilli(), topic, models.CLAIMED, lastTs)
+	result, err := s.ExecContext(ctx, reQueue, models.PENDING, nil, nil, time.Now().UnixMilli(), topic, models.CLAIMED, lastTs)
 	if err != nil {
 		return 0, err
 	}

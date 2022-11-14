@@ -5,7 +5,6 @@ import (
 	"github.com/hextechpal/prio/app/internal/config"
 	"github.com/hextechpal/prio/core"
 	"github.com/hextechpal/prio/core/models"
-	"github.com/hextechpal/prio/mysql-backend"
 	"net/http"
 	"time"
 
@@ -18,9 +17,9 @@ type Handler struct {
 	logger *zerolog.Logger
 }
 
-func NewHandler(ctx context.Context, config *config.Config, s *mysql_backend.Storage, logger *zerolog.Logger) (*Handler, error) {
+func NewHandler(ctx context.Context, config *config.Config, e core.Engine, logger *zerolog.Logger) (*Handler, error) {
 	timeout := time.Duration(config.Zk.TimeoutMs) * time.Millisecond
-	w := core.NewWorker(ctx, config.Namespace, config.Zk.Servers, timeout, s, logger)
+	w := core.NewWorker(ctx, config.Namespace, config.Zk.Servers, timeout, e, logger)
 	err := w.Start()
 
 	if err != nil {

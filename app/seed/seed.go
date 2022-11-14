@@ -4,10 +4,17 @@ import (
 	"context"
 	"fmt"
 	"github.com/hextechpal/prio/core/models"
-	"github.com/hextechpal/prio/mysql-backend"
-	"github.com/rs/zerolog"
+	"github.com/hextechpal/prio/engine/mysql"
 	"math/rand"
 )
+
+var config = mysql.Config{
+	Host:     "127.0.0.1",
+	Port:     3306,
+	User:     "root",
+	Password: "root",
+	DBName:   "prio",
+}
 
 func main() {
 	//fmt.Printf("enqueued 100 jobs for cricket %v\n", enqueueJobs("cricket", 100))
@@ -19,7 +26,8 @@ func main() {
 
 func enqueueJobs(topic string, count int) []int64 {
 	jobIds := make([]int64, count)
-	storage, _ := mysql_backend.NewStorage("mysql", "root:root@tcp(127.0.0.1:3306)/prio", &zerolog.Logger{})
+
+	storage, _ := mysql.NewEngine(config)
 	for i := 0; i < count; i++ {
 		priority := int32(rand.Intn(100))
 		res, _ := storage.Enqueue(context.Background(), &models.Job{
@@ -35,7 +43,7 @@ func enqueueJobs(topic string, count int) []int64 {
 
 func dequeJobs(topic string, count int, consumer string) []int64 {
 	jobIds := make([]int64, count)
-	storage, _ := mysql_backend.NewStorage("mysql", "root:root@tcp(127.0.0.1:3306)/prio", &zerolog.Logger{})
+	storage, _ := mysql.NewEngine(config)
 	for i := 0; i < count; i++ {
 		res, _ := storage.Dequeue(context.Background(), topic, consumer)
 		jobIds[i] = res.ID

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/go-zookeeper/zk"
 	"github.com/hextechpal/prio/core"
-	"github.com/hextechpal/prio/inmemory-engine"
+	"github.com/hextechpal/prio/engine/memory"
 	"github.com/rs/zerolog"
 	"math/rand"
 	"os"
@@ -126,7 +126,7 @@ func Test_leader_election_single(t *testing.T) {
 
 func setup(t *testing.T, ch chan resp) {
 	t.Helper()
-	w := core.NewWorker(ctx, ns, []string{zkHost}, time.Second, inmemory_engine.NewStorage(), &logger)
+	w := core.NewWorker(ctx, ns, []string{zkHost}, time.Second, memory.NewEngine(), &logger)
 	ch <- resp{w, w.Start()}
 }
 

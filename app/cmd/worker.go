@@ -6,7 +6,8 @@ import (
 	"github.com/hextechpal/prio/app/internal/config"
 	"github.com/hextechpal/prio/app/internal/handler"
 	"github.com/hextechpal/prio/app/internal/router"
-	"github.com/hextechpal/prio/mysql-backend"
+	"github.com/hextechpal/prio/core"
+	"github.com/hextechpal/prio/engine/mysql"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
@@ -46,8 +47,9 @@ func setupServer(config *config.Config) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	logger := setupLogger(ctx, config)
-	storage, err := mysql_backend.NewStorage(config.DB.Driver, config.DB.DSN, logger)
+	logger := initLogger(ctx, config)
+
+	storage, err := initEngine(config)
 	if err != nil {
 		panic(err)
 	}
@@ -81,7 +83,17 @@ func setupServer(config *config.Config) {
 
 }
 
-func setupLogger(ctx context.Context, c *config.Config) *zerolog.Logger {
+func initEngine(c *config.Config) (core.Engine, error) {
+	return mysql.NewEngine(mysql.Config{
+		Host:     c.DB.Host,
+		Port:     c.DB.Port,
+		User:     c.DB.User,
+		Password: c.DB.Password,
+		DBName:   c.DB.Database,
+	})
+}
+
+func initLogger(ctx context.Context, c *config.Config) *zerolog.Logger {
 	logLevel := zerolog.InfoLevel
 	if c.Debug {
 		logLevel = zerolog.DebugLevel

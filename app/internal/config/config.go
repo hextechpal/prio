@@ -15,8 +15,11 @@ type Config struct {
 	}
 
 	DB struct {
-		Driver string `envconfig:"PRIO_DB_DRIVER"` // Only sql is supported for now
-		DSN    string `envconfig:"PRIO_DB_DSN"`    // Only sql is supported for now
+		Host     string `envconfig:"PRIO_DB_HOST"`     // Only sql is supported for now
+		Port     int32  `envconfig:"PRIO_DB_PORT"`     // Only sql is supported for now
+		User     string `envconfig:"PRIO_DB_USER"`     // Only sql is supported for now
+		Password string `envconfig:"PRIO_DB_PASSWORD"` // Only sql is supported for now
+		Database string `envconfig:"PRIO_DB_DATABASE"` // Only sql is supported for now
 	}
 
 	Zk struct {
