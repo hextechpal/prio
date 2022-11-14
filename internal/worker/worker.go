@@ -3,9 +3,11 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/hextechpal/prio/internal/election"
 	"github.com/hextechpal/prio/internal/store"
+	"math"
 	"sync"
 	"time"
 
@@ -42,6 +44,10 @@ type (
 	}
 
 	membershipData map[string]map[string]bool
+)
+
+var (
+	ErrorNoAssignedTopics = errors.New("no assigned topics")
 )
 
 // NewWorker : Initializes a new prio instance registers it with zookeeper
@@ -110,6 +116,9 @@ func (w *Worker) work(elector *election.Elector, _ <-chan zk.Event) {
 		case <-t.C:
 			err := w.maintain()
 			if err != nil {
+				if err == ErrorNoAssignedTopics {
+					continue
+				}
 				w.logger.Error().Err(err)
 			}
 		case status := <-elector.Status():
@@ -213,7 +222,7 @@ func (w *Worker) maintain() error {
 
 	data, _, err := w.conn.Get(fmt.Sprintf(partitionNode, w.Namespace))
 	if err != nil {
-		return err
+		return ErrorNoAssignedTopics
 	}
 
 	var mdata membershipData
@@ -245,17 +254,34 @@ func (w *Worker) watchMembers(ch <-chan zk.Event) {
 	for {
 		select {
 		case event := <-ch:
+			w.logger.Info().Msgf("watchMembers: event received=%v", event)
 			if event.Type == zk.EventNodeChildrenChanged {
 				err := w.reBalance()
 				if err != nil {
-					return
+					w.logger.Error().Err(err)
 				}
+
+				err = w.reWatchMembers()
+				if err != nil {
+					w.logger.Error().Err(err)
+				}
+				return
 			}
 		case <-w.ldrDoneCh:
 			w.logger.Info().Msgf("watchMembers: stopping watch on the members")
 			return
 		}
 	}
+}
+
+func (w *Worker) reWatchMembers() error {
+	w.logger.Info().Msgf("reWatchMembers: setting up member watch")
+	_, _, membersCh, err := w.conn.ChildrenW(fmt.Sprintf(membershipRoot, w.Namespace))
+	if err != nil {
+		return err
+	}
+	go w.watchMembers(membersCh)
+	return err
 }
 
 func (w *Worker) reBalance() error {
@@ -273,9 +299,24 @@ func (w *Worker) reBalanceChildren(children []string) error {
 	}
 
 	w.logger.Info().Msgf("balancing %d topics among %d workers", len(topics), len(children))
-	partition := make(map[string]map[string]bool)
+	data, err := json.Marshal(calculatePartition(topics, children))
+	if err != nil {
+		return err
+	}
+
+	w.logger.Info().Msgf("partition: %v", string(data))
+	_, err = w.conn.Set(fmt.Sprintf(partitionNode, w.Namespace), data, -1)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func calculatePartition(topics, children []string) membershipData {
+	partition := membershipData(make(map[string]map[string]bool))
 	if len(topics) > 0 && len(children) > 0 {
-		tpw := len(topics) / len(children)
+		tpw := int(math.Round(float64(len(topics)) / float64(len(children))))
 		i := 0
 		for ; i < len(children)-1; i++ {
 			partition[children[i]] = topicsToMap(topics[i*tpw : (i+1)*tpw])
@@ -283,18 +324,7 @@ func (w *Worker) reBalanceChildren(children []string) error {
 		partition[children[i]] = topicsToMap(topics[i*tpw:])
 	}
 
-	w.logger.Info().Msgf("partition: %v", partition)
-	data, err := json.Marshal(membershipData(partition))
-	if err != nil {
-		return err
-	}
-
-	_, err = w.conn.Set(fmt.Sprintf(partitionNode, w.Namespace), data, -1)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return partition
 }
 
 func topicsToMap(topics []string) map[string]bool {

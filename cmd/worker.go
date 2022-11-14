@@ -101,5 +101,4 @@ func setupLogger(ctx context.Context, c *config.Config) *zerolog.Logger {
 func init() {
 	rootCmd.AddCommand(workerCmd)
 	workerCmd.Flags().StringP(envarg, "e", "local.env", "Config file for the config")
-
 }
