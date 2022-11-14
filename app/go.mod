@@ -3,10 +3,8 @@ module github.com/hextechpal/prio/app
 go 1.19
 
 require (
-	github.com/go-sql-driver/mysql v1.6.0
-	github.com/go-zookeeper/zk v1.0.3
-	github.com/google/uuid v1.3.0
-	github.com/jmoiron/sqlx v1.3.5
+	github.com/hextechpal/prio/core v0.0.0-20221114132924-a785f445ba9f
+	github.com/hextechpal/prio/mysql-backend v0.0.0-20221114133453-ace062c9ec18
 	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/labstack/echo/v4 v4.9.1
@@ -16,8 +14,13 @@ require (
 )
 
 require (
+	github.com/go-sql-driver/mysql v1.6.0 // indirect
+	github.com/go-zookeeper/zk v1.0.3 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
+	github.com/google/uuid v1.3.0 // indirect
+	github.com/hextechpal/prio/commons v0.0.0-20221114132924-a785f445ba9f // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
+	github.com/jmoiron/sqlx v1.3.5 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
@@ -30,7 +33,4 @@ require (
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324 // indirect
 )
 
-
-replace (
-	github.com/hextechpal/prio/core => ../core
-)
+replace github.com/hextechpal/prio/core => ../core

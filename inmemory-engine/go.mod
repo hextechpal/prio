@@ -1,4 +1,4 @@
-module github.com/hextechpal/prio
+module github.com/hextechpal/prio/inmemory-engine
 
 go 1.19
 

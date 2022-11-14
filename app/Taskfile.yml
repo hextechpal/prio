@@ -12,12 +12,8 @@ tasks:
     cmds:
       - go build -o release/{{.GOOS}}/{{.GOARCH}}/prio
 
-  migrate:
-    cmds:
-      - migrate -path migrations/mysql -database "mysql://{{.PRIO_DB_USER}}:{{.PRIO_DB_PASSWORD}}@tcp(127.0.0.1:3306)/prio" up
-
   start:
-    deps: [build, migrate]
+    deps: [build]
     vars:
       GOOS:
         sh: go env GOOS
