@@ -1,12 +1,11 @@
-package worker
+package core
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/hextechpal/prio/internal/election"
-	"github.com/hextechpal/prio/internal/store"
+	"github.com/hextechpal/prio/core/election"
 	"math"
 	"sync"
 	"time"
@@ -32,7 +31,7 @@ type (
 		ID        string    // ID: unique ID of the prio worker instance
 		done      chan bool // done : channel to signal the all the go routines to stop as worker is shutting down
 
-		store.Storage // Storage underneath storage implementation
+		Storage // Storage underneath storage implementation
 
 		zkServers []string      // zkServers: slice of zookeeper servers to connect to
 		timeout   time.Duration // timeout: zookeeper connection timeout
@@ -52,7 +51,7 @@ var (
 
 // NewWorker : Initializes a new prio instance registers it with zookeeper
 // It also starts all the watchers and background workers
-func NewWorker(ctx context.Context, namespace string, servers []string, timeout time.Duration, s store.Storage, logger *zerolog.Logger) *Worker {
+func NewWorker(ctx context.Context, namespace string, servers []string, timeout time.Duration, s Storage, logger *zerolog.Logger) *Worker {
 	uuid := commons.GenerateUuid()
 	l := logger.With().Str("wid", uuid).Logger()
 	w := &Worker{

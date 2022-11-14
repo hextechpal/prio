@@ -1,13 +1,13 @@
-package sql
+package mysql_backend
 
 import (
 	"context"
 	"database/sql"
-	"github.com/hextechpal/prio/internal/store"
+	"github.com/hextechpal/prio/core"
+	"github.com/hextechpal/prio/core/models"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/hextechpal/prio/internal/models"
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog"
 )
@@ -79,7 +79,7 @@ func (s *Storage) Dequeue(ctx context.Context, topic string, consumer string) (*
 	err := s.GetContext(ctx, &job, s.qm.topJob(), topic, models.PENDING)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, store.ErrorJobNotPresent
+			return nil, core.ErrorJobNotPresent
 		}
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (s *Storage) Dequeue(ctx context.Context, topic string, consumer string) (*
 	}
 
 	if affected, err := result.RowsAffected(); err != nil || affected == 0 {
-		return nil, store.ErrorJobNotAcquired
+		return nil, core.ErrorJobNotAcquired
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -111,21 +111,21 @@ func (s *Storage) Ack(ctx context.Context, topic string, id int64, consumer stri
 	err := s.GetContext(ctx, &job, s.qm.jobById(), id, topic)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return store.ErrorJobNotPresent
+			return core.ErrorJobNotPresent
 		}
 		return err
 	}
 
 	if job.Status == models.COMPLETED {
-		return store.ErrorAlreadyAcked
+		return core.ErrorAlreadyAcked
 	}
 
 	if job.Status == models.PENDING {
-		return store.ErrorLeaseExceeded
+		return core.ErrorLeaseExceeded
 	}
 
 	if job.Status == models.CLAIMED && *job.ClaimedBy != consumer {
-		return store.ErrorWrongConsumer
+		return core.ErrorWrongConsumer
 	}
 
 	result, err := tx.ExecContext(ctx, s.qm.completeJob(), models.CLAIMED, time.Now().UnixMilli(), job.ID)
@@ -134,7 +134,7 @@ func (s *Storage) Ack(ctx context.Context, topic string, id int64, consumer stri
 	}
 
 	if affected, _ := result.RowsAffected(); affected == 0 {
-		return store.ErrorGeneral
+		return core.ErrorGeneral
 	}
 
 	if err = tx.Commit(); err != nil {

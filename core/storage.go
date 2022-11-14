@@ -1,9 +1,8 @@
-package store
+package core
 
 import (
 	"context"
-
-	"github.com/hextechpal/prio/internal/models"
+	"github.com/hextechpal/prio/core/models"
 )
 
 type Storage interface {

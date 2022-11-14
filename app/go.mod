@@ -1,4 +1,4 @@
-module github.com/hextechpal/prio
+module github.com/hextechpal/prio/app
 
 go 1.19
 
@@ -28,4 +28,9 @@ require (
 	golang.org/x/sys v0.0.0-20221006211917-84dc82d7e875 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324 // indirect
+)
+
+
+replace (
+	github.com/hextechpal/prio/core => ../core
 )
