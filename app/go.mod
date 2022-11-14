@@ -3,7 +3,9 @@ module github.com/hextechpal/prio/app
 go 1.19
 
 require (
+	github.com/go-zookeeper/zk v1.0.3
 	github.com/hextechpal/prio/core v0.0.0-20221114132924-a785f445ba9f
+	github.com/hextechpal/prio/inmemory-engine v0.0.0-20221114135318-3a707cc3c0eb
 	github.com/hextechpal/prio/mysql-backend v0.0.0-20221114133453-ace062c9ec18
 	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0
@@ -15,7 +17,6 @@ require (
 
 require (
 	github.com/go-sql-driver/mysql v1.6.0 // indirect
-	github.com/go-zookeeper/zk v1.0.3 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/hextechpal/prio/commons v0.0.0-20221114132924-a785f445ba9f // indirect

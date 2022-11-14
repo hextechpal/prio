@@ -1,4 +1,4 @@
-package mysql_backend
+package mysql
 
 import "errors"
 

@@ -1,4 +1,4 @@
-package mysql_backend
+package mysql
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-type Storage struct {
+type Engine struct {
 	*sqlx.DB
 	driver string
 	dsn    string
@@ -20,14 +20,14 @@ type Storage struct {
 	logger *zerolog.Logger
 }
 
-func NewStorage(driver string, dsn string, logger *zerolog.Logger) (*Storage, error) {
+func NewEngine(driver string, dsn string, logger *zerolog.Logger) (*Engine, error) {
 	db, err := sqlx.Connect(driver, dsn)
 	if err != nil {
 		logger.Error().Err(err)
 		return nil, err
 	}
 
-	s := &Storage{
+	s := &Engine{
 		DB:     db,
 		driver: driver,
 		dsn:    dsn,
@@ -37,7 +37,7 @@ func NewStorage(driver string, dsn string, logger *zerolog.Logger) (*Storage, er
 	return s, nil
 }
 
-func (s *Storage) GetTopics(ctx context.Context) ([]string, error) {
+func (s *Engine) GetTopics(ctx context.Context) ([]string, error) {
 	var topics []string
 	err := s.SelectContext(ctx, &topics, s.qm.allTopics())
 	if err != nil {
@@ -46,7 +46,7 @@ func (s *Storage) GetTopics(ctx context.Context) ([]string, error) {
 	return topics, nil
 }
 
-func (s *Storage) CreateTopic(ctx context.Context, name, description string) (int64, error) {
+func (s *Engine) CreateTopic(ctx context.Context, name, description string) (int64, error) {
 	r, err := s.ExecContext(ctx, s.qm.addTopic(), name, description, time.Now().UnixMilli(), time.Now().UnixMilli())
 	if err != nil {
 		return -1, err
@@ -55,7 +55,7 @@ func (s *Storage) CreateTopic(ctx context.Context, name, description string) (in
 	return r.LastInsertId()
 }
 
-func (s *Storage) Enqueue(ctx context.Context, job *models.Job) (int64, error) {
+func (s *Engine) Enqueue(ctx context.Context, job *models.Job) (int64, error) {
 	r, err := s.ExecContext(ctx, s.qm.addJob(), job.Topic, job.Payload, job.Priority, job.Status, time.Now().UnixMilli(), time.Now().UnixMilli())
 	if err != nil {
 		return -1, err
@@ -63,7 +63,7 @@ func (s *Storage) Enqueue(ctx context.Context, job *models.Job) (int64, error) {
 	return r.LastInsertId()
 }
 
-func (s *Storage) Dequeue(ctx context.Context, topic string, consumer string) (*models.Job, error) {
+func (s *Engine) Dequeue(ctx context.Context, topic string, consumer string) (*models.Job, error) {
 	// Find Top priority item with status pending
 	// Update the status to delivered and delivered_at timestamp to NOW()
 	// return the updated object
@@ -99,7 +99,7 @@ func (s *Storage) Dequeue(ctx context.Context, topic string, consumer string) (*
 	return &job, nil
 }
 
-func (s *Storage) Ack(ctx context.Context, topic string, id int64, consumer string) error {
+func (s *Engine) Ack(ctx context.Context, topic string, id int64, consumer string) error {
 	tx := s.MustBeginTx(ctx, &sql.TxOptions{})
 	defer func() {
 		if err := tx.Rollback(); err != nil {
@@ -144,7 +144,7 @@ func (s *Storage) Ack(ctx context.Context, topic string, id int64, consumer stri
 	return nil
 }
 
-func (s *Storage) ReQueue(ctx context.Context, topic string, lastTs int64) (int, error) {
+func (s *Engine) ReQueue(ctx context.Context, topic string, lastTs int64) (int, error) {
 	result, err := s.ExecContext(ctx, s.qm.reQueue(), models.PENDING, nil, nil, time.Now().UnixMilli(), topic, models.CLAIMED, lastTs)
 	if err != nil {
 		return 0, err

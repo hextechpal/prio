@@ -5,7 +5,7 @@ import (
 	"github.com/hextechpal/prio/core/models"
 )
 
-type Storage interface {
+type Engine interface {
 	// GetTopics :Creates a new topic
 	// TODO: Add support for filters and cache
 	GetTopics(ctx context.Context) ([]string, error)

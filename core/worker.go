@@ -31,7 +31,7 @@ type (
 		ID        string    // ID: unique ID of the prio worker instance
 		done      chan bool // done : channel to signal the all the go routines to stop as worker is shutting down
 
-		Storage // Storage underneath storage implementation
+		Engine // Engine underneath storage implementation
 
 		zkServers []string      // zkServers: slice of zookeeper servers to connect to
 		timeout   time.Duration // timeout: zookeeper connection timeout
@@ -51,7 +51,7 @@ var (
 
 // NewWorker : Initializes a new prio instance registers it with zookeeper
 // It also starts all the watchers and background workers
-func NewWorker(ctx context.Context, namespace string, servers []string, timeout time.Duration, s Storage, logger *zerolog.Logger) *Worker {
+func NewWorker(ctx context.Context, namespace string, servers []string, timeout time.Duration, s Engine, logger *zerolog.Logger) *Worker {
 	uuid := commons.GenerateUuid()
 	l := logger.With().Str("wid", uuid).Logger()
 	w := &Worker{
@@ -59,7 +59,7 @@ func NewWorker(ctx context.Context, namespace string, servers []string, timeout 
 		ID:        uuid,
 		zkServers: servers,
 		timeout:   timeout,
-		Storage:   s,
+		Engine:    s,
 		role:      election.FOLLOWER,
 		done:      make(chan bool),
 		logger:    &l,
