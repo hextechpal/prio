@@ -3,10 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/hextechpal/prio/internal/config"
-	"github.com/hextechpal/prio/internal/handler"
-	"github.com/hextechpal/prio/internal/router"
-	"github.com/hextechpal/prio/internal/store/sql"
+	"github.com/hextechpal/prio/app/internal/config"
+	"github.com/hextechpal/prio/app/internal/handler"
+	"github.com/hextechpal/prio/app/internal/router"
+	"github.com/hextechpal/prio/mysql-backend"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
@@ -47,7 +47,7 @@ func setupServer(config *config.Config) {
 	defer cancel()
 
 	logger := setupLogger(ctx, config)
-	storage, err := sql.NewStorage(config.DB.Driver, config.DB.DSN, logger)
+	storage, err := mysql_backend.NewStorage(config.DB.Driver, config.DB.DSN, logger)
 	if err != nil {
 		panic(err)
 	}

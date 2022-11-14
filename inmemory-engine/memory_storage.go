@@ -1,22 +1,22 @@
-package memory
+package inmemory_engine
 
 import (
 	"context"
-	"github.com/hextechpal/prio/internal/models"
+	models2 "github.com/hextechpal/prio/core/models"
 	"sync"
 	"time"
 )
 
 type Storage struct {
 	mu        sync.RWMutex
-	topicsMap map[string]models.Topic
-	jobMap    map[int64]models.Job
+	topicsMap map[string]models2.Topic
+	jobMap    map[int64]models2.Job
 }
 
 func NewStorage() *Storage {
 	return &Storage{
-		topicsMap: make(map[string]models.Topic),
-		jobMap:    make(map[int64]models.Job),
+		topicsMap: make(map[string]models2.Topic),
+		jobMap:    make(map[int64]models2.Job),
 	}
 }
 
@@ -24,7 +24,7 @@ func (m *Storage) CreateTopic(ctx context.Context, topic string, description str
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	id := int64(len(m.topicsMap) + 1)
-	m.topicsMap[topic] = models.Topic{
+	m.topicsMap[topic] = models2.Topic{
 		Name:        topic,
 		Description: &description,
 		CreatedAt:   time.Now().UnixMilli(),
@@ -33,12 +33,12 @@ func (m *Storage) CreateTopic(ctx context.Context, topic string, description str
 	return id, nil
 }
 
-func (m *Storage) Enqueue(ctx context.Context, job *models.Job) (int64, error) {
+func (m *Storage) Enqueue(ctx context.Context, job *models2.Job) (int64, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *Storage) Dequeue(ctx context.Context, topic string, consumer string) (*models.Job, error) {
+func (m *Storage) Dequeue(ctx context.Context, topic string, consumer string) (*models2.Job, error) {
 	//TODO implement me
 	panic("implement me")
 }
