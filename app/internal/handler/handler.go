@@ -2,13 +2,11 @@ package handler
 
 import (
 	"context"
-	"github.com/hextechpal/prio/commons"
 	"github.com/hextechpal/prio/core"
+	"github.com/hextechpal/prio/core/commons"
 	"github.com/hextechpal/prio/core/models"
 	"net/http"
 	"time"
-
-	"github.com/labstack/echo/v4"
 )
 
 type Handler struct {
