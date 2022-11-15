@@ -20,7 +20,7 @@ func NewEngine() *Engine {
 	}
 }
 
-func (m *Engine) CreateTopic(ctx context.Context, topic string, description string) (int64, error) {
+func (m *Engine) CreateTopic(_ context.Context, topic string, description string) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	id := int64(len(m.topicsMap) + 1)

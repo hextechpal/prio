@@ -49,7 +49,6 @@ The topics are load balanced all the workers`,
 func setupServer(c *config.Config) {
 	id := commons.GenerateUuid()
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	logger := initLogger(id, c)
 	w, err := initWorker(id, c, logger)
@@ -66,14 +65,15 @@ func setupServer(c *config.Config) {
 	}
 	h.Register(g)
 
-	startServer(ctx, r, c, logger)
+	startServer(ctx, r, c, logger, cancel)
 }
 
-func startServer(ctx context.Context, r *echo.Echo, c *config.Config, logger commons.Logger) {
+func startServer(ctx context.Context, r *echo.Echo, c *config.Config, logger commons.Logger, cancel context.CancelFunc) {
 	// Start server
 	go func() {
 		err := r.Start(fmt.Sprintf("%s:%d", c.Server.Host, c.Server.Port))
 		if err != nil && err != http.ErrServerClosed {
+			cancel()
 			logger.Fatal("shutting down the server, error=%v", err)
 		}
 	}()
@@ -81,6 +81,7 @@ func startServer(ctx context.Context, r *echo.Echo, c *config.Config, logger com
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)
 	<-quit
+	cancel()
 	if err := r.Shutdown(ctx); err != nil {
 		logger.Fatal("error=%v", err)
 	}

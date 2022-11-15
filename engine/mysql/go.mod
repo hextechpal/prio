@@ -4,7 +4,6 @@ go 1.19
 
 require (
 	github.com/go-sql-driver/mysql v1.6.0
-	github.com/hextechpal/prio/core v0.0.0-20221114132924-a785f445ba9f
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/rs/zerolog v1.28.0
 )

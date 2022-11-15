@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-zookeeper/zk"
-	"github.com/hextechpal/prio/commons"
+	"github.com/hextechpal/prio/core/commons"
 	"sort"
 	"strings"
 	"sync"
