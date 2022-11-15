@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-zookeeper/zk"
-	"github.com/rs/zerolog"
+	"github.com/hextechpal/prio/commons"
 	"sort"
 	"strings"
 	"sync"
@@ -38,7 +38,7 @@ type (
 		stopCh            chan any   // stopCh stop all the watch routines
 
 		once   sync.Once
-		logger *zerolog.Logger
+		logger commons.Logger
 	}
 )
 
@@ -53,7 +53,7 @@ func (s Status) String() string {
 	return fmt.Sprintf("canditateId=%s, role=%d, following=%s, err=%s", s.CandidateId, s.Role, s.Following, s.Err)
 }
 
-func NewElector(conn *zk.Conn, electionRoot string, logger *zerolog.Logger) (*Elector, error) {
+func NewElector(conn *zk.Conn, electionRoot string, logger commons.Logger) (*Elector, error) {
 	if conn == nil {
 		return nil, errors.New("conn cannot be nil")
 	}
@@ -82,7 +82,7 @@ func NewElector(conn *zk.Conn, electionRoot string, logger *zerolog.Logger) (*El
 
 func (e *Elector) Elect(candidateId string) {
 	status := e.initiateElection(candidateId)
-	e.logger.Info().Msgf("%v", status)
+	e.logger.Info("%v", status)
 	e.statusCh <- status
 	for {
 		select {
@@ -90,7 +90,7 @@ func (e *Elector) Elect(candidateId string) {
 			if err != nil {
 				status.Err = err
 			} else {
-				e.logger.Info().Msgf("finding leader again status=%v", status)
+				e.logger.Info("finding leader again status=%v", status)
 				e.findLeader(&status)
 			}
 
@@ -126,7 +126,7 @@ func (e *Elector) initiateElection(candidateId string) Status {
 		CandidateId: candidateId,
 		Role:        FOLLOWER,
 	}
-	e.logger.Info().Msgf("nominating candidate")
+	e.logger.Info("%v\n", "nominating candidate")
 	znode, myCh, err := e.nominate(candidateId)
 	if err != nil {
 		status.Err = err
@@ -134,7 +134,7 @@ func (e *Elector) initiateElection(candidateId string) Status {
 	}
 	// Save znode into the elector
 	// TODO : check if this correct place to store this
-	e.logger.Info().Msgf("candidate nominated, znode=%s, storing=%s", znode, znode[len(e.root)+1:])
+	e.logger.Info("candidate nominated, znode=%s, storing=%s", znode, znode[len(e.root)+1:])
 
 	// Populate myCh here
 	e.znode = znode[len(e.root)+1:]
@@ -145,7 +145,7 @@ func (e *Elector) initiateElection(candidateId string) Status {
 	// If I am not the leader find out who to follow and set up a watch on that
 	// TODO check if election is over
 
-	e.logger.Info().Msgf("starting to find leader")
+	e.logger.Info("starting to find leader")
 	e.findLeader(&status)
 	if status.Err != nil {
 		status.Err = fmt.Errorf("%s Unexpected error attempting to determine leader. Error (%v)",
@@ -163,14 +163,14 @@ func (e *Elector) findLeader(status *Status) {
 	}
 
 	if leader {
-		e.logger.Info().Msgf("selected as leader, updating status")
+		e.logger.Info("selected as leader, updating status")
 		status.Role = LEADER
 		status.Following = ""
 		go e.watchLeader()
 		return
 	}
 
-	e.logger.Info().Msgf("setting up follower watch for znode=%s", toFollow)
+	e.logger.Info("setting up follower watch for znode=%s", toFollow)
 	followCh, err := e.setPredecessorWatch(toFollow)
 	if err != nil {
 		status.Err = err
@@ -252,7 +252,7 @@ func (e *Elector) watchLeader() {
 	for {
 		select {
 		case event := <-e.myCh:
-			e.logger.Info().Msgf("predecessor node deleted sending notification to triggerElectionCh")
+			e.logger.Info("predecessor node deleted sending notification to triggerElectionCh")
 			if event.Type == zk.EventNodeDeleted {
 				err := fmt.Errorf("%s Leader (%v) has been deleted", "watchForLeaderDeleteEvents", e.znode)
 				e.triggerElectionCh <- err
@@ -270,7 +270,7 @@ func (e *Elector) watchPredecessor() {
 		select {
 		case event := <-e.predecessorCh:
 			if event.Type == zk.EventNodeDeleted {
-				e.logger.Info().Msgf("predecessor node deleted sending notification to triggerElectionCh")
+				e.logger.Info("predecessor node deleted sending notification to triggerElectionCh")
 				e.triggerElectionCh <- nil
 				return
 			}
@@ -291,7 +291,7 @@ func (e *Elector) resign() {
 	close(e.stopCh)
 	err := e.conn.Delete(strings.Join([]string{e.root, e.znode}, sep), -1)
 	if err != nil {
-		e.logger.Error().Err(err).Msgf("error deleting znode")
+		e.logger.Error(err, "error deleting znode")
 	}
 	e.once.Do(func() {
 		close(e.statusCh)

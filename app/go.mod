@@ -34,9 +34,9 @@ require (
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324 // indirect
 )
 
-replace (
-	//github.com/hextechpal/prio/commons => ../commons
-	//github.com/hextechpal/prio/core => ../core
-	//github.com/hextechpal/prio/engine/memory => ../engine/memory
-	//github.com/hextechpal/prio/engine/mysql => ../engine/mysql
-)
+//replace (
+//	github.com/hextechpal/prio/commons => ../commons
+//	github.com/hextechpal/prio/core => ../core
+//	github.com/hextechpal/prio/engine/memory => ../engine/memory
+//	github.com/hextechpal/prio/engine/mysql => ../engine/mysql
+//)

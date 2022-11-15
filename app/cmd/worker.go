@@ -3,18 +3,22 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/hextechpal/prio/app/internal"
 	"github.com/hextechpal/prio/app/internal/config"
 	"github.com/hextechpal/prio/app/internal/handler"
-	"github.com/hextechpal/prio/app/internal/router"
+	"github.com/hextechpal/prio/commons"
 	"github.com/hextechpal/prio/core"
 	"github.com/hextechpal/prio/engine/mysql"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/gommon/log"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"net/http"
 	"os"
 	"os/signal"
+	"time"
 )
 
 const envarg = "envfile"
@@ -42,45 +46,79 @@ The topics are load balanced all the workers`,
 	},
 }
 
-func setupServer(config *config.Config) {
-	ctx := context.WithValue(context.Background(), "ns", config.Namespace)
-	ctx, cancel := context.WithCancel(ctx)
+func setupServer(c *config.Config) {
+	id := commons.GenerateUuid()
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	logger := initLogger(ctx, config)
-
-	storage, err := initEngine(config)
+	logger := initLogger(id, c)
+	w, err := initWorker(id, c, logger)
 	if err != nil {
 		panic(err)
 	}
 
-	r := router.New(config.Debug)
-	r.GET("/", func(c echo.Context) error {
-		return c.String(http.StatusOK, "Hello, World!")
-	})
-
+	r := initRouter(c.Debug)
 	g := r.Group("v1")
-	h, err := handler.NewHandler(ctx, config, storage, logger)
+
+	h, err := handler.NewHandler(ctx, w, logger)
 	if err != nil {
 		panic(err)
 	}
 	h.Register(g)
 
+	startServer(ctx, r, c, logger)
+}
+
+func startServer(ctx context.Context, r *echo.Echo, c *config.Config, logger commons.Logger) {
 	// Start server
 	go func() {
-		err = r.Start(fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port))
+		err := r.Start(fmt.Sprintf("%s:%d", c.Server.Host, c.Server.Port))
 		if err != nil && err != http.ErrServerClosed {
-			logger.Fatal().Err(err).Msgf("shutting down the server")
+			logger.Fatal("shutting down the server, error=%v", err)
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)
 	<-quit
-	if err = r.Shutdown(ctx); err != nil {
-		logger.Fatal().Err(err)
+	if err := r.Shutdown(ctx); err != nil {
+		logger.Fatal("error=%v", err)
+	}
+}
+
+func initRouter(debug bool) *echo.Echo {
+	e := echo.New()
+	lvl := log.INFO
+	if debug {
+		lvl = log.DEBUG
 	}
 
+	e.Logger.SetLevel(lvl)
+	e.Pre(middleware.RemoveTrailingSlash())
+	e.Use(middleware.Logger())
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+		AllowMethods: []string{echo.GET, echo.HEAD, echo.PUT, echo.PATCH, echo.POST, echo.DELETE},
+	}))
+	return e
+}
+
+func initWorker(id string, c *config.Config, logger commons.Logger) (*core.Worker, error) {
+	engine, err := initEngine(c)
+	if err != nil {
+		return nil, err
+	}
+	timeout := time.Duration(c.Zk.TimeoutMs) * time.Millisecond
+	w := core.NewWorker(
+		c.Zk.Servers,
+		engine,
+		core.WithID(id),
+		core.WithNamespace(c.Namespace),
+		core.WithTimeout(timeout),
+		core.WithLogger(logger))
+
+	return w, nil
 }
 
 func initEngine(c *config.Config) (core.Engine, error) {
@@ -93,7 +131,7 @@ func initEngine(c *config.Config) (core.Engine, error) {
 	})
 }
 
-func initLogger(ctx context.Context, c *config.Config) *zerolog.Logger {
+func initLogger(id string, c *config.Config) commons.Logger {
 	logLevel := zerolog.InfoLevel
 	if c.Debug {
 		logLevel = zerolog.DebugLevel
@@ -104,10 +142,11 @@ func initLogger(ctx context.Context, c *config.Config) *zerolog.Logger {
 		New(os.Stderr).
 		With().
 		Timestamp().
-		Str("ns", ctx.Value("ns").(string)).
+		Str("ns", c.Namespace).
+		Str("wid", id).
 		Logger().
 		Output(zerolog.ConsoleWriter{Out: os.Stderr})
-	return &logger
+	return &internal.Logger{Logger: &logger}
 }
 
 func init() {

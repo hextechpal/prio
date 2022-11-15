@@ -7,20 +7,20 @@ import (
 	"fmt"
 	"github.com/hextechpal/prio/core/election"
 	"math"
+	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/go-zookeeper/zk"
 	"github.com/hextechpal/prio/commons"
-	"github.com/rs/zerolog"
 )
 
 const (
-	nsPath         = "/prio/%s"
-	electionRoot   = "/prio/%s/election"
-	membershipRoot = "/prio/%s/members"
-	memberNode     = "/prio/%s/members/%s"
-	partitionNode  = "/prio/%s/partition"
+	nsPath         = "/%s"
+	electionRoot   = "/%s/election"
+	membershipRoot = "/%s/members"
+	memberNode     = "/%s/members/%s"
+	partitionNode  = "/%s/partition"
 )
 
 type (
@@ -39,8 +39,10 @@ type (
 		ldrDoneCh chan any      // ldrDoneCh inform the leader to stop watch on membership node
 		role      election.Role // role: role assumed by the worker
 
-		logger *zerolog.Logger // logger
+		logger commons.Logger // logger
 	}
+
+	Option = func(w *Worker)
 
 	membershipData map[string]map[string]bool
 )
@@ -49,33 +51,54 @@ var (
 	ErrorNoAssignedTopics = errors.New("no assigned topics")
 )
 
+func WithTimeout(timeout time.Duration) Option {
+	return func(w *Worker) {
+		w.timeout = timeout
+	}
+}
+
+func WithID(ID string) Option {
+	return func(w *Worker) {
+		w.ID = ID
+	}
+}
+
+func WithNamespace(namespace string) Option {
+	return func(w *Worker) {
+		w.Namespace = namespace
+	}
+}
+
+func WithLogger(logger commons.Logger) Option {
+	return func(w *Worker) {
+		w.logger = logger
+	}
+}
+
 // NewWorker : Initializes a new prio instance registers it with zookeeper
 // It also starts all the watchers and background workers
-func NewWorker(ctx context.Context, namespace string, servers []string, timeout time.Duration, s Engine, logger *zerolog.Logger) *Worker {
-	uuid := commons.GenerateUuid()
-	l := logger.With().Str("wid", uuid).Logger()
+func NewWorker(servers []string, engine Engine, opts ...Option) *Worker {
+	rand.Seed(time.Now().UnixMilli())
 	w := &Worker{
-		Namespace: namespace,
-		ID:        uuid,
+		Namespace: fmt.Sprintf("ns_%d", rand.Intn(10000)),
+		ID:        commons.GenerateUuid(),
 		zkServers: servers,
-		timeout:   timeout,
-		Engine:    s,
+		timeout:   5 * time.Second,
+		Engine:    engine,
 		role:      election.FOLLOWER,
 		done:      make(chan bool),
-		logger:    &l,
+		logger:    &commons.DefaultLogger{},
 	}
 
-	go func() {
-		<-ctx.Done()
-		w.ShutDown()
-	}()
-
+	for _, opt := range opts {
+		opt(w)
+	}
 	return w
 }
 
 // Start : Registers the instance with a new zookeeper
 // TODO: change this to use AuthACL and validate prio instances
-func (w *Worker) Start() error {
+func (w *Worker) Start(ctx context.Context) error {
 	conn, zkCh, err := zk.Connect(w.zkServers, w.timeout, zk.WithLogger(w.logger))
 	if err != nil {
 		return err
@@ -97,19 +120,19 @@ func (w *Worker) Start() error {
 		return err
 	}
 
-	go w.work(elector, zkCh)
+	go w.work(ctx, elector, zkCh)
 	return nil
 }
 
 // work : Forever running go routine which is responsible for listening to membership changes.
 // It also performs clean up for tasks in case the acknowledgement is not
-func (w *Worker) work(elector *election.Elector, _ <-chan zk.Event) {
+func (w *Worker) work(ctx context.Context, elector *election.Elector, _ <-chan zk.Event) {
 	go elector.Elect(w.ID)
 	t := time.NewTicker(5 * time.Second)
 	for {
 		select {
-		case <-w.done:
-			w.logger.Info().Msgf("work: received done signal, resigning")
+		case <-ctx.Done():
+			w.logger.Info("work: received done signal, resigning")
 			elector.Resign()
 			return
 		case <-t.C:
@@ -118,24 +141,24 @@ func (w *Worker) work(elector *election.Elector, _ <-chan zk.Event) {
 				if err == ErrorNoAssignedTopics {
 					continue
 				}
-				w.logger.Error().Err(err)
+				w.logger.Error(err, "ticker maintenance error")
 			}
 		case status := <-elector.Status():
 			if status.Err != nil {
-				w.logger.Error().Err(status.Err)
+				w.logger.Error(status.Err, "elector status error")
 				continue
 			}
 
 			if status.Role == election.LEADER {
-				w.logger.Info().Msgf("work: elected as leader, running leader setup")
+				w.logger.Info("work: elected as leader, running leader setup")
 				err := w.leaderSetup()
 				if err != nil {
-					w.logger.Error().Err(err)
+					w.logger.Error(err, "leader setup error")
 				}
 			}
 
 			if status.Role == election.FOLLOWER {
-				w.logger.Info().Msgf("work: got message to be a follower, running follower setup")
+				w.logger.Info("work: got message to be a follower, running follower setup")
 				w.followerSetup()
 			}
 		}
@@ -178,7 +201,7 @@ func (w *Worker) ensureZNodes() error {
 func (w *Worker) ensureZnodePath(path string) error {
 	_, err := w.conn.Create(path, []byte{}, 0, zk.WorldACL(zk.PermAll))
 	if err != nil && err != zk.ErrNodeExists {
-		w.logger.Error().Err(err).Msg("failed to create Namespace key")
+		w.logger.Error(err, "failed to create Namespace key")
 		return err
 	}
 	return nil
@@ -190,10 +213,10 @@ func (w *Worker) leaderSetup() error {
 		return err
 	}
 
-	w.logger.Info().Msgf("re-balancing children")
+	w.logger.Info("re-balancing children")
 	err = w.reBalanceChildren(children)
 	if err != nil {
-		w.logger.Error().Err(err).Msgf("error re-balancing")
+		w.logger.Error(err, "error re-balancing")
 		return err
 	}
 
@@ -231,16 +254,16 @@ func (w *Worker) maintain() error {
 	}
 
 	if topicMap, ok := mdata[w.ID]; ok {
-		w.logger.Info().Msgf("starting maintenance topics=%v", topicMap)
+		w.logger.Info("starting maintenance topics=%v", topicMap)
 		for topic := range topicMap {
 			go func(tName string) {
 				lastTime := time.Now().Add(-10 * time.Second)
 				count, err := w.ReQueue(context.Background(), tName, lastTime.UnixMilli())
 				if err != nil {
-					w.logger.Error().Err(err).Msgf("failed for requeue jobs for topic %s", tName)
+					w.logger.Error(err, "failed for requeue jobs for topic %s", tName)
 					return
 				}
-				w.logger.Info().Msgf("requeued jobs=%d, topic=%s", count, tName)
+				w.logger.Info("re-queued jobs=%d, topic=%s", count, tName)
 			}(topic)
 		}
 	}
@@ -249,32 +272,32 @@ func (w *Worker) maintain() error {
 }
 
 func (w *Worker) watchMembers(ch <-chan zk.Event) {
-	w.logger.Info().Msgf("setting up member watch")
+	w.logger.Info("watchMembers: setting up member watch")
 	for {
 		select {
 		case event := <-ch:
-			w.logger.Info().Msgf("watchMembers: event received=%v", event)
+			w.logger.Info("watchMembers: event received=%v", event)
 			if event.Type == zk.EventNodeChildrenChanged {
 				err := w.reBalance()
 				if err != nil {
-					w.logger.Error().Err(err)
+					w.logger.Error(err, "watchMembers: re-balance error")
 				}
 
 				err = w.reWatchMembers()
 				if err != nil {
-					w.logger.Error().Err(err)
+					w.logger.Error(err, "watchMembers: reWatchMembers error")
 				}
 				return
 			}
 		case <-w.ldrDoneCh:
-			w.logger.Info().Msgf("watchMembers: stopping watch on the members")
+			w.logger.Info("watchMembers: stopping watch on the members")
 			return
 		}
 	}
 }
 
 func (w *Worker) reWatchMembers() error {
-	w.logger.Info().Msgf("reWatchMembers: setting up member watch")
+	w.logger.Info("reWatchMembers: setting up member watch")
 	_, _, membersCh, err := w.conn.ChildrenW(fmt.Sprintf(membershipRoot, w.Namespace))
 	if err != nil {
 		return err
@@ -297,13 +320,13 @@ func (w *Worker) reBalanceChildren(children []string) error {
 		return err
 	}
 
-	w.logger.Info().Msgf("balancing %d topics among %d workers", len(topics), len(children))
+	w.logger.Info("balancing %d topics among %d workers", len(topics), len(children))
 	data, err := json.Marshal(calculatePartition(topics, children))
 	if err != nil {
 		return err
 	}
 
-	w.logger.Info().Msgf("partition: %v", string(data))
+	w.logger.Info("partition: %v", string(data))
 	_, err = w.conn.Set(fmt.Sprintf(partitionNode, w.Namespace), data, -1)
 	if err != nil {
 		return err

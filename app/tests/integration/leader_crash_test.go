@@ -6,9 +6,7 @@ import (
 	"github.com/go-zookeeper/zk"
 	"github.com/hextechpal/prio/core"
 	"github.com/hextechpal/prio/engine/memory"
-	"github.com/rs/zerolog"
 	"math/rand"
-	"os"
 	"testing"
 	"time"
 )
@@ -21,21 +19,12 @@ const (
 var ns string
 var conn *zk.Conn
 var ctx context.Context
-var logger zerolog.Logger
 
 func init() {
 	var err error
 	rand.Seed(time.Now().UnixMilli())
 	ns = fmt.Sprintf("ns_%d", rand.Intn(10000))
 	ctx = context.WithValue(context.Background(), "ns", ns)
-	logger = zerolog.
-		New(os.Stderr).
-		With().
-		Timestamp().
-		Str("ns", ns).
-		Logger().
-		Output(zerolog.ConsoleWriter{Out: os.Stderr})
-
 	conn, _, err = zk.Connect([]string{zkHost}, 60*time.Second)
 	if err != nil {
 		panic(err)
@@ -126,8 +115,8 @@ func Test_leader_election_single(t *testing.T) {
 
 func setup(t *testing.T, ch chan resp) {
 	t.Helper()
-	w := core.NewWorker(ctx, ns, []string{zkHost}, time.Second, memory.NewEngine(), &logger)
-	ch <- resp{w, w.Start()}
+	w := core.NewWorker([]string{zkHost}, memory.NewEngine())
+	ch <- resp{w, w.Start(ctx)}
 }
 
 func cleanup() {

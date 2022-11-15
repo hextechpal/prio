@@ -2,26 +2,22 @@ package handler
 
 import (
 	"context"
-	"github.com/hextechpal/prio/app/internal/config"
+	"github.com/hextechpal/prio/commons"
 	"github.com/hextechpal/prio/core"
 	"github.com/hextechpal/prio/core/models"
 	"net/http"
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/rs/zerolog"
 )
 
 type Handler struct {
 	w      *core.Worker
-	logger *zerolog.Logger
+	logger commons.Logger
 }
 
-func NewHandler(ctx context.Context, config *config.Config, e core.Engine, logger *zerolog.Logger) (*Handler, error) {
-	timeout := time.Duration(config.Zk.TimeoutMs) * time.Millisecond
-	w := core.NewWorker(ctx, config.Namespace, config.Zk.Servers, timeout, e, logger)
-	err := w.Start()
-
+func NewHandler(ctx context.Context, w *core.Worker, logger commons.Logger) (*Handler, error) {
+	err := w.Start(ctx)
 	if err != nil {
 		return nil, err
 	}
