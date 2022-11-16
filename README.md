@@ -11,6 +11,15 @@ Prio works with pluggable storage engine. We can write engine implementations ba
 - mysql(https://github.com/hextechpal/prio/tree/master/engine/mysql)
 - memory(https://github.com/hextechpal/prio/tree/master/engine/memory) : this is only for tests purposes
 
+## API
+
+- RegisterTopic : Create a new topic 
+- Enqueue: Add a new job to a particular topic
+- Deque: Pops a job fron the topic based on queue
+- Ack: Mark the job as completed
+
+- Requeue: This is an internal api and not exposed. If the dequed task is not acked within 10 sec then the task is moved back to the queue and is eligible for redelivery
+
 
 ## Repo structure 
 
