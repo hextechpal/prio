@@ -1,13 +1,11 @@
-package handler
+package api
 
 type RegisterTopicRequest struct {
 	Name        string
 	Description string
 }
 
-type RegisterTopicResponse struct {
-	TopicID int64
-}
+type RegisterTopicResponse struct{}
 
 type EnqueueRequest struct {
 	Topic    string
@@ -33,10 +31,18 @@ type DequeueResponse struct {
 
 type AckRequest struct {
 	JobId    int64
-	Topic    string
 	Consumer string
 }
 
 type AckResponse struct {
 	Acked bool
+}
+
+type RequeueRequest struct {
+	Topic     string
+	RequeueTs int64
+}
+
+type RequeueResponse struct {
+	Count int64
 }

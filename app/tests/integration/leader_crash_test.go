@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/go-zookeeper/zk"
 	"github.com/hextechpal/prio/core"
+	"github.com/hextechpal/prio/core/api"
 	"github.com/hextechpal/prio/engine/memory"
 	"math/rand"
 	"testing"
@@ -19,6 +20,7 @@ const (
 var ns string
 var conn *zk.Conn
 var ctx context.Context
+var engine api.Engine
 
 func init() {
 	var err error
@@ -29,6 +31,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	engine = memory.NewEngine()
 }
 
 type resp struct {
@@ -115,7 +118,7 @@ func Test_leader_election_single(t *testing.T) {
 
 func setup(t *testing.T, ch chan resp) {
 	t.Helper()
-	w := core.NewWorker([]string{zkHost}, memory.NewEngine())
+	w := core.NewWorker([]string{zkHost}, engine)
 	ch <- resp{w, w.Start(ctx)}
 }
 

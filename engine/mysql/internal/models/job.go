@@ -1,5 +1,7 @@
 package models
 
+import "database/sql"
+
 type Status int
 
 const (
@@ -15,8 +17,8 @@ type Job struct {
 	Priority int32  `db:"priority"`
 	Status   Status `db:"status"`
 
-	ClaimedAt int64   `db:"claimed_at"`
-	ClaimedBy *string `db:"claimed_by"`
+	ClaimedAt int64          `db:"claimed_at"`
+	ClaimedBy sql.NullString `db:"claimed_by"`
 
 	CompletedAt int64 `db:"completed_at"`
 

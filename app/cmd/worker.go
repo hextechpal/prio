@@ -7,6 +7,7 @@ import (
 	"github.com/hextechpal/prio/app/internal/config"
 	"github.com/hextechpal/prio/app/internal/handler"
 	"github.com/hextechpal/prio/core"
+	"github.com/hextechpal/prio/core/api"
 	"github.com/hextechpal/prio/core/commons"
 	"github.com/hextechpal/prio/engine/mysql"
 	"github.com/joho/godotenv"
@@ -122,7 +123,7 @@ func initWorker(id string, c *config.Config, logger commons.Logger) (*core.Worke
 	return w, nil
 }
 
-func initEngine(c *config.Config) (core.Engine, error) {
+func initEngine(c *config.Config) (api.Engine, error) {
 	return mysql.NewEngine(mysql.Config{
 		Host:     c.DB.Host,
 		Port:     c.DB.Port,

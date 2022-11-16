@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hextechpal/prio/core/api"
 	"github.com/hextechpal/prio/core/election"
 	"math"
 	"math/rand"
@@ -31,7 +32,7 @@ type (
 		ID        string    // ID: unique ID of the prio worker instance
 		done      chan bool // done : channel to signal the all the go routines to stop as worker is shutting down
 
-		Engine // Engine underneath storage implementation
+		api.Engine // Engine underneath storage implementation
 
 		zkServers []string      // zkServers: slice of zookeeper servers to connect to
 		timeout   time.Duration // timeout: zookeeper connection timeout
@@ -48,7 +49,7 @@ type (
 )
 
 var (
-	ErrorNoAssignedTopics = errors.New("no assigned topics")
+	errorNoAssignedTopics = errors.New("no assigned topics")
 )
 
 func WithTimeout(timeout time.Duration) Option {
@@ -77,7 +78,7 @@ func WithLogger(logger commons.Logger) Option {
 
 // NewWorker : Initializes a new prio instance registers it with zookeeper
 // It also starts all the watchers and background workers
-func NewWorker(servers []string, engine Engine, opts ...Option) *Worker {
+func NewWorker(servers []string, engine api.Engine, opts ...Option) *Worker {
 	rand.Seed(time.Now().UnixMilli())
 	w := &Worker{
 		Namespace: fmt.Sprintf("ns_%d", rand.Intn(10000)),
@@ -120,25 +121,29 @@ func (w *Worker) Start(ctx context.Context) error {
 		return err
 	}
 
-	go w.work(ctx, elector, zkCh)
+	go w.work(elector, zkCh)
+	go func() {
+		<-ctx.Done()
+		w.done <- true
+	}()
 	return nil
 }
 
 // work : Forever running go routine which is responsible for listening to membership changes.
 // It also performs clean up for tasks in case the acknowledgement is not
-func (w *Worker) work(ctx context.Context, elector *election.Elector, _ <-chan zk.Event) {
+func (w *Worker) work(elector *election.Elector, _ <-chan zk.Event) {
 	go elector.Elect(w.ID)
 	t := time.NewTicker(5 * time.Second)
 	for {
 		select {
-		case <-ctx.Done():
+		case <-w.done:
 			w.logger.Info("work: received done signal, resigning")
 			elector.Resign()
 			return
 		case <-t.C:
 			err := w.maintain()
 			if err != nil {
-				if err == ErrorNoAssignedTopics {
+				if err == errorNoAssignedTopics {
 					continue
 				}
 				w.logger.Error(err, "ticker maintenance error")
@@ -244,7 +249,7 @@ func (w *Worker) maintain() error {
 
 	data, _, err := w.conn.Get(fmt.Sprintf(partitionNode, w.Namespace))
 	if err != nil {
-		return ErrorNoAssignedTopics
+		return errorNoAssignedTopics
 	}
 
 	var mdata membershipData
@@ -258,7 +263,10 @@ func (w *Worker) maintain() error {
 		for topic := range topicMap {
 			go func(tName string) {
 				lastTime := time.Now().Add(-10 * time.Second)
-				count, err := w.ReQueue(context.Background(), tName, lastTime.UnixMilli())
+				count, err := w.ReQueue(context.Background(), api.RequeueRequest{
+					Topic:     tName,
+					RequeueTs: lastTime.UnixMilli(),
+				})
 				if err != nil {
 					w.logger.Error(err, "failed for requeue jobs for topic %s", tName)
 					return
