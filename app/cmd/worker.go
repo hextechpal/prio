@@ -10,6 +10,7 @@ import (
 	"github.com/hextechpal/prio/core/commons"
 	"github.com/hextechpal/prio/engine/mysql"
 	"github.com/joho/godotenv"
+	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/rs/zerolog"

@@ -4,6 +4,9 @@ go 1.19
 
 require (
 	github.com/go-zookeeper/zk v1.0.3
+	github.com/hextechpal/prio/core v0.0.0-20221115140803-07f5cc6aaa98
+	github.com/hextechpal/prio/engine/memory v0.0.0-20221115140803-07f5cc6aaa98
+	github.com/hextechpal/prio/engine/mysql v0.0.0-20221115140803-07f5cc6aaa98
 	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/labstack/echo/v4 v4.9.1
