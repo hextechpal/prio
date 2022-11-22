@@ -10,7 +10,7 @@ tasks:
       GOARCH:
         sh: go env GOARCH
     cmds:
-      - go build -o release/{{.GOOS}}/{{.GOARCH}}/prio
+      - go build -o release/{{.GOOS}}/{{.GOARCH}}/worker
 
   start:
     deps: [build]
@@ -20,4 +20,4 @@ tasks:
       GOARCH:
         sh: go env GOARCH
     cmds:
-      - ./release/{{.GOOS}}/{{.GOARCH}}/prio worker
+      - ./release/{{.GOOS}}/{{.GOARCH}}/worker start
