@@ -24,10 +24,10 @@ import (
 
 const envarg = "envfile"
 
-// workerCmd represents the worker command
-var workerCmd = &cobra.Command{
-	Use:   "worker",
-	Short: "Starts a prio worker config",
+// startCmd represents the worker command
+var startCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Starts a prio worker",
 	Long: `It starts a prio worker with the specified configuration 
 It adds a worker to the worker pool specified by the name space
 The topics are load balanced all the workers`,
@@ -152,6 +152,6 @@ func initLogger(id string, c *config.Config) commons.Logger {
 }
 
 func init() {
-	rootCmd.AddCommand(workerCmd)
-	workerCmd.Flags().StringP(envarg, "e", "local.env", "Config file for the config")
+	rootCmd.AddCommand(startCmd)
+	startCmd.Flags().StringP(envarg, "e", "local.env", "Config file for the config")
 }
