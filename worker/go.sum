@@ -12,6 +12,12 @@ github.com/golang-jwt/jwt v3.2.2+incompatible h1:IfV12K8xAKAnZqdXVzCZ+TOjboZ2keL
 github.com/golang-jwt/jwt v3.2.2+incompatible/go.mod h1:8pz2t5EyA70fFQQSrl6XZXzqecmYZeUEB8OUGHkxJ+I=
 github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
 github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/hextechpal/prio/core v0.0.0-20221125151452-105fca04192c h1:St0ZA6rdJ5BG+D8qIaIpNSf0j//g3m942GVXdBiiKew=
+github.com/hextechpal/prio/core v0.0.0-20221125151452-105fca04192c/go.mod h1:Z+f/3lsmm8IFRkHKGGDvConJ/uTCoPERrePJFR3zPoo=
+github.com/hextechpal/prio/engine/memory v0.0.0-20221125151452-105fca04192c h1:uMWtISpBLonUJr8Gfzlfi9Oa0LBKIX5bsGNL9zr6Pyg=
+github.com/hextechpal/prio/engine/memory v0.0.0-20221125151452-105fca04192c/go.mod h1:X2Op9ca2NpVbTIibf4Ok+EXq6roVoutmG59yht9x+VI=
+github.com/hextechpal/prio/engine/mysql v0.0.0-20221125151452-105fca04192c h1:VdQhcXaNw/jEVwV34c/SYjdZJsVEByMR7385Lhp6s+A=
+github.com/hextechpal/prio/engine/mysql v0.0.0-20221125151452-105fca04192c/go.mod h1:iuXJVflDD9ltPQ+Z2nhwJkGxZEwTP2/9IL1fuWIZHs0=
 github.com/inconshreveable/mousetrap v1.0.1 h1:U3uMjPSQEBMNp1lFxmllqCPM6P5u/Xq7Pgzkat/bFNc=
 github.com/inconshreveable/mousetrap v1.0.1/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/jmoiron/sqlx v1.3.5 h1:vFFPA71p1o5gAeqtEAwLU4dnX2napprKtHr7PYIcN3g=
