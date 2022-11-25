@@ -34,7 +34,6 @@ require (
 )
 
 //replace (
-//	github.com/hextechpal/prio/commons => ../commons
 //	github.com/hextechpal/prio/core => ../core
 //	github.com/hextechpal/prio/engine/memory => ../engine/memory
 //	github.com/hextechpal/prio/engine/mysql => ../engine/mysql

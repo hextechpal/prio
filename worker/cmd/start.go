@@ -119,7 +119,6 @@ func initWorker(id string, c *config.Config, logger commons.Logger) (*core.Worke
 		core.WithNamespace(c.Namespace),
 		core.WithTimeout(timeout),
 		core.WithLogger(logger))
-
 	return w, nil
 }
 
