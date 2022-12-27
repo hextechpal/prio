@@ -28,4 +28,3 @@ This repository is a set of go modules
 - core(https://github.com/hextechpal/prio/tree/master/core) : This module consist of the basic interfaces and leader election code based on zookeeper. 
 - engines/* : This directory code contain engine implementation modules. As descibed above mysql is implemented
 - app : This implement an actual app on top of the prio modules and mysql engine
-
